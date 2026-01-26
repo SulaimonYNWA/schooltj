@@ -1,0 +1,47 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/auth';
+import Login from './pages/Login';
+import SignUp from './pages/SignUp';
+
+import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
+import AddTeacher from './pages/AddTeacher';
+import Courses from './pages/Courses';
+import Teachers from './pages/Teachers';
+import Profile from './pages/Profile';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+
+const ProtectedRoute = () => {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return <Layout />;
+};
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
+
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/teachers" element={<Teachers />} />
+              <Route path="/add-teacher" element={<AddTeacher />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </Router>
+    </QueryClientProvider>
+  );
+}
+
+export default App;

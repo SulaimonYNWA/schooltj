@@ -1,0 +1,7 @@
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS students;
+DROP TABLE IF EXISTS teacher_profiles;
+DROP TABLE IF EXISTS schools;
+DROP TABLE IF EXISTS users;
