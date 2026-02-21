@@ -36,6 +36,29 @@ func (r *SchoolRepository) CreateTeacherProfile(ctx context.Context, profile *do
 	return err
 }
 
+func (r *SchoolRepository) AddTeacherToSchool(ctx context.Context, schoolID string, teacherUserID string) error {
+	query := `UPDATE teacher_profiles SET school_id = ?, updated_at = NOW() WHERE user_id = ?`
+	_, err := r.DB.ExecContext(ctx, query, schoolID, teacherUserID)
+	return err
+}
+
+func (r *SchoolRepository) GetTeacherProfile(ctx context.Context, userID string) (*domain.TeacherProfile, error) {
+	query := `SELECT user_id, school_id, bio, subjects, hourly_rate, currency, created_at, updated_at FROM teacher_profiles WHERE user_id = ?`
+	row := r.DB.QueryRowContext(ctx, query, userID)
+
+	var profile domain.TeacherProfile
+	var subjectsJSON string
+	err := row.Scan(&profile.UserID, &profile.SchoolID, &profile.Bio, &subjectsJSON, &profile.HourlyRate, &profile.Currency, &profile.CreatedAt, &profile.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("teacher profile not found")
+		}
+		return nil, err
+	}
+	// TODO: Unmarshal subjectsJSON into profile.Subjects
+	return &profile, nil
+}
+
 func (r *SchoolRepository) GetSchoolByAdminID(ctx context.Context, adminID string) (*domain.School, error) {
 	query := `SELECT id, admin_user_id, name, created_at, updated_at FROM schools WHERE admin_user_id = ?`
 	row := r.DB.QueryRowContext(ctx, query, adminID)

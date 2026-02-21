@@ -17,14 +17,16 @@ var ErrEmailAlreadyExists = errors.New("email already exists")
 type AuthService struct {
 	repo        *repository.UserRepository
 	schoolRepo  *repository.SchoolRepository
+	studentRepo *repository.StudentRepository
 	jwtSecret   []byte
 	tokenExpiry time.Duration
 }
 
-func NewAuthService(repo *repository.UserRepository, schoolRepo *repository.SchoolRepository, secret string) *AuthService {
+func NewAuthService(repo *repository.UserRepository, schoolRepo *repository.SchoolRepository, studentRepo *repository.StudentRepository, secret string) *AuthService {
 	return &AuthService{
 		repo:        repo,
 		schoolRepo:  schoolRepo,
+		studentRepo: studentRepo,
 		jwtSecret:   []byte(secret),
 		tokenExpiry: 24 * time.Hour,
 	}
@@ -63,6 +65,28 @@ func (s *AuthService) Register(ctx context.Context, email, password string, role
 		}
 		if err := s.schoolRepo.CreateSchool(ctx, school); err != nil {
 			// Ideally rollback user creation here in a transaction
+			return nil, err
+		}
+	} else if role == domain.RoleTeacher {
+		// Auto-create teacher profile for independent teachers or to valid FK
+		profile := &domain.TeacherProfile{
+			UserID:   user.ID,
+			SchoolID: nil, // Independent by default
+			Bio:      "",
+			Subjects: []string{},
+		}
+		if err := s.schoolRepo.CreateTeacherProfile(ctx, profile); err != nil {
+			return nil, err
+		}
+	} else if role == domain.RoleStudent {
+		// Auto-create student profile
+		student := &domain.Student{
+			UserID:     user.ID,
+			ParentName: "", // Unknown at registration
+			GradeLevel: "", // Unknown at registration
+		}
+
+		if err := s.studentRepo.Create(ctx, student); err != nil {
 			return nil, err
 		}
 	}

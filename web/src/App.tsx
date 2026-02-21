@@ -9,6 +9,10 @@ import AddTeacher from './pages/AddTeacher';
 import Courses from './pages/Courses';
 import Teachers from './pages/Teachers';
 import Profile from './pages/Profile';
+import Students from './pages/Students';
+import Attendance from './pages/Attendance';
+import Payments from './pages/Payments';
+import Announcements from './pages/Announcements';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -34,6 +38,10 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/courses" element={<Courses />} />
               <Route path="/teachers" element={<Teachers />} />
+              <Route path="/students" element={<Students />} />
+              <Route path="/attendance" element={<Attendance />} />
+              <Route path="/payments" element={<Payments />} />
+              <Route path="/announcements" element={<Announcements />} />
               <Route path="/add-teacher" element={<AddTeacher />} />
               <Route path="/profile" element={<Profile />} />
             </Route>

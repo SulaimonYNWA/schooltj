@@ -34,14 +34,17 @@ func (s *SchoolService) AddTeacherToSchool(ctx context.Context, adminUserID, tea
 		return nil, err
 	}
 
-	// 3. Create Teacher Profile linked to School
-	profile := &domain.TeacherProfile{
-		UserID:   user.ID,
-		SchoolID: &school.ID,
-		Bio:      bio,
-	}
-	if err := s.schoolRepo.CreateTeacherProfile(ctx, profile); err != nil {
+	// 3. Link Teacher to School and update bio
+	if err := s.schoolRepo.AddTeacherToSchool(ctx, school.ID, user.ID); err != nil {
 		return nil, err
+	}
+
+	// Update bio separately if it exists
+	if bio != "" {
+		_, err = s.schoolRepo.DB.ExecContext(ctx, "UPDATE teacher_profiles SET bio = ? WHERE user_id = ?", bio, user.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return user, nil

@@ -47,16 +47,29 @@ func main() {
 	// Dependency Injection
 	userRepo := repository.NewUserRepository(repo.DB)
 	schoolRepo := repository.NewSchoolRepository(repo.DB)
-	authService := service.NewAuthService(userRepo, schoolRepo, "your-secret-key") // TODO: Move secret to env
+	studentRepo := repository.NewStudentRepository(repo.DB)                                     // Create studentRepo earlier
+	authService := service.NewAuthService(userRepo, schoolRepo, studentRepo, "your-secret-key") // TODO: Move secret to env
 	authHandler := handler.NewAuthHandler(authService)
 	courseRepo := repository.NewCourseRepository(repo.DB)
-	courseService := service.NewCourseService(courseRepo, schoolRepo, userRepo)
+	courseService := service.NewCourseService(courseRepo, schoolRepo, userRepo, studentRepo) // Inject studentRepo
 	schoolService := service.NewSchoolService(schoolRepo, authService, courseService)
 	schoolHandler := handler.NewSchoolHandler(schoolService)
 	courseHandler := handler.NewCourseHandler(courseService)
 	ratingRepo := repository.NewRatingRepository(repo.DB)
 	ratingService := service.NewRatingService(ratingRepo)
 	ratingHandler := handler.NewRatingHandler(ratingService)
+	studentService := service.NewStudentService(studentRepo)
+	studentHandler := handler.NewStudentHandler(studentService)
+	attendanceRepo := repository.NewAttendanceRepository(repo.DB)
+	attendanceService := service.NewAttendanceService(attendanceRepo)
+	attendanceHandler := handler.NewAttendanceHandler(attendanceService)
+	paymentRepo := repository.NewPaymentRepository(repo.DB)
+	paymentService := service.NewPaymentService(paymentRepo)
+	paymentHandler := handler.NewPaymentHandler(paymentService)
+	announcementRepo := repository.NewAnnouncementRepository(repo.DB)
+	announcementService := service.NewAnnouncementService(announcementRepo)
+	announcementHandler := handler.NewAnnouncementHandler(announcementService)
+	dashboardHandler := handler.NewDashboardHandler(repo.DB)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -88,9 +101,40 @@ func main() {
 		// Course routes
 		r.Get("/api/courses", courseHandler.List)
 		r.Post("/api/courses", courseHandler.Create)
+		r.Post("/api/courses/{id}/invite", courseHandler.Invite)
+		r.Post("/api/courses/{id}/request-access", courseHandler.RequestAccess)
+		r.Post("/api/invitations/{id}/respond", courseHandler.RespondInvitation)
+		r.Get("/api/my-enrollments", courseHandler.MyEnrollments)
+		r.Get("/api/courses/{id}/enrollments", courseHandler.CourseEnrollments)
+		r.Post("/api/enrollments/{id}/approve", courseHandler.ApproveEnrollment)
 
 		// Rating routes
 		r.Post("/api/ratings", ratingHandler.SubmitRating)
+
+		// Student routes
+		r.Get("/api/students", studentHandler.List)
+		r.Get("/api/my-students", studentHandler.ListMyStudents)
+
+		// Attendance routes
+		r.Post("/api/courses/{id}/attendance", attendanceHandler.MarkAttendance)
+		r.Get("/api/courses/{id}/attendance", attendanceHandler.GetSessionAttendance)
+		r.Get("/api/courses/{id}/roster", attendanceHandler.GetCourseRoster)
+		r.Get("/api/my-attendance", attendanceHandler.MyAttendance)
+		r.Get("/api/my-attendance/summary", attendanceHandler.MyAttendanceSummary)
+
+		// Payment routes
+		r.Post("/api/payments", paymentHandler.RecordPayment)
+		r.Get("/api/payments", paymentHandler.ListPayments)
+		r.Get("/api/my-payments", paymentHandler.MyPayments)
+
+		// Announcement routes
+		r.Post("/api/announcements", announcementHandler.Create)
+		r.Get("/api/announcements", announcementHandler.List)
+		r.Delete("/api/announcements/{id}", announcementHandler.Delete)
+
+		// Dashboard routes
+		r.Get("/api/dashboard/stats", dashboardHandler.GetStats)
+		r.Get("/api/dashboard/activity", dashboardHandler.GetActivity)
 	})
 
 	port := os.Getenv("PORT")

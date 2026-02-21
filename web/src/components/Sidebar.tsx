@@ -1,4 +1,4 @@
-import { Home, User, BookOpen, Settings, LogOut, Users, Tag } from 'lucide-react';
+import { Home, User, BookOpen, LogOut, Users, Calendar, DollarSign, Megaphone } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
@@ -17,28 +17,33 @@ export default function Sidebar() {
             name: 'Courses',
             href: '/courses',
             icon: BookOpen,
-            visible: user?.role === 'school_admin' || user?.role === 'student'
+            visible: true
         },
         {
-            name: 'My Schedule',
-            href: '/schedule',
-            icon: BookOpen,
-            visible: user?.role === 'teacher'
+            name: 'Students',
+            href: '/students',
+            icon: Users,
+            visible: user?.role === 'school_admin' || user?.role === 'teacher'
         },
         {
-            name: 'Browse Courses',
-            href: '/courses',
-            icon: BookOpen,
-            visible: user?.role === 'student' || user?.role === 'teacher'
+            name: 'Attendance',
+            href: '/attendance',
+            icon: Calendar,
+            visible: user?.role === 'teacher' || user?.role === 'school_admin' || user?.role === 'student'
         },
         {
-            name: 'My Enrollments',
-            href: '/enrollments',
-            icon: Tag,
-            visible: user?.role === 'student'
+            name: 'Payments',
+            href: '/payments',
+            icon: DollarSign,
+            visible: true
+        },
+        {
+            name: 'Announcements',
+            href: '/announcements',
+            icon: Megaphone,
+            visible: true
         },
         { name: 'Profile', href: '/profile', icon: User, visible: true },
-        { name: 'Settings', href: '/settings', icon: Settings, visible: true },
     ];
 
     return (

@@ -1,2 +1,54 @@
 2026/01/26 16:08:47 Server starting on port 8080
 2026/01/26 16:38:25 Server starting on port 8080
+2026/02/01 13:23:43 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/01 13:24:08 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/01 13:24:42 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/01 13:27:30 Server starting on port 8080
+2026/02/01 14:50:14 Server starting on port 8080
+2026/02/01 15:23:08 Server starting on port 8080
+2026/02/01 15:33:33 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/01 15:34:06 Server starting on port 8080
+2026/02/01 15:37:24 Server starting on port 8080
+2026/02/01 15:43:38 Server starting on port 8080
+2026/02/01 15:50:46 Server starting on port 8080
+2026/02/01 20:13:18 Server starting on port 8080
+2026/02/01 20:27:49 Server starting on port 8080
+2026/02/01 20:29:03 Server starting on port 8080
+2026/02/01 20:34:56 Server starting on port 8080
+2026/02/01 20:41:10 Server starting on port 8080
+2026/02/01 23:06:51 Server starting on port 8080
+2026/02/01 23:27:39 Server starting on port 8080
+2026/02/01 23:30:03 Server starting on port 8080
+2026/02/01 23:36:26 Server starting on port 8080
+2026/02/01 23:39:45 Server starting on port 8080
+2026/02/01 23:40:56 Server starting on port 8080
+2026/02/01 23:44:31 Server starting on port 8080
+2026/02/01 23:46:26 Server starting on port 8080
+2026/02/02 00:02:46 Server starting on port 8080
+2026/02/02 00:06:15 Server starting on port 8080
+2026/02/02 00:06:21 Server starting on port 8080
+2026/02/02 00:11:16 Server starting on port 8080
+2026/02/02 19:16:09 Could not connect to database:failed to ping db: dial tcp 127.0.0.1:3307: connect: connection refused
+2026/02/02 19:16:43 Server starting on port 8080
+2026/02/02 19:30:37 Server starting on port 8080
+2026/02/02 19:32:49 Server starting on port 8080
+2026/02/02 19:50:27 Server starting on port 8080
+2026/02/02 20:19:32 Server starting on port 8080
+2026/02/16 19:05:38 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/16 19:06:08 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/16 19:06:15 Server starting on port 8080
+2026/02/16 22:01:43 Server starting on port 8080
+2026/02/16 22:01:43 listen tcp :8080: bind: address already in use
+2026/02/16 22:05:12 Server starting on port 8080
+2026/02/16 22:05:12 listen tcp :8080: bind: address already in use
+2026/02/16 22:05:20 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/16 22:24:16 Server starting on port 8080
+2026/02/16 22:24:16 listen tcp :8080: bind: address already in use
+2026/02/16 22:25:19 Server starting on port 8080
+2026/02/16 22:25:19 listen tcp :8080: bind: address already in use
+2026/02/16 22:26:01 Server starting on port 8081
+2026/02/21 16:29:48 Server starting on port 8080
+2026/02/21 16:29:48 listen tcp :8080: bind: address already in use
+2026/02/21 16:33:36 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
+2026/02/21 16:35:44 Server starting on port 8080
+2026/02/21 17:00:49 Server starting on port 8080
