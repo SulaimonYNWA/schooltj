@@ -64,3 +64,28 @@ func (r *UserRepository) UpdateUser(ctx context.Context, user *domain.User) erro
 	_, err := r.DB.ExecContext(ctx, query, user.Email, user.Name, user.ID)
 	return err
 }
+
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID, hashedPassword string) error {
+	query := `UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?`
+	_, err := r.DB.ExecContext(ctx, query, hashedPassword, userID)
+	return err
+}
+
+func (r *UserRepository) SearchUsers(ctx context.Context, q string) ([]domain.User, error) {
+	query := `SELECT id, email, COALESCE(name, '') as name, role FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY name LIMIT 10`
+	pattern := "%" + q + "%"
+	rows, err := r.DB.QueryContext(ctx, query, pattern, pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}

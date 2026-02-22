@@ -116,3 +116,35 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(user)
 }
+
+// SearchUsers handles GET /api/users/search?q=...
+func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	if len(q) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+	users, err := h.service.SearchUsers(r.Context(), q)
+	if err != nil {
+		log.Printf("[AuthHandler.SearchUsers] error: %v", err)
+		http.Error(w, "search failed", http.StatusInternalServerError)
+		return
+	}
+	if users == nil {
+		users = []domain.User{}
+	}
+	// Strip sensitive fields
+	type safeUser struct {
+		ID    string      `json:"id"`
+		Name  string      `json:"name"`
+		Email string      `json:"email"`
+		Role  domain.Role `json:"role"`
+	}
+	result := make([]safeUser, len(users))
+	for i, u := range users {
+		result[i] = safeUser{ID: u.ID, Name: u.Name, Email: u.Email, Role: u.Role}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}

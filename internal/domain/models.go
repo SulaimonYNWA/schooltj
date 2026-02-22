@@ -167,3 +167,95 @@ type Announcement struct {
 	IsPinned    bool      `json:"is_pinned"`
 	CreatedAt   time.Time `json:"created_at"`
 }
+
+type Grade struct {
+	ID            string    `json:"id"`
+	StudentUserID string    `json:"student_user_id"`
+	StudentName   string    `json:"student_name,omitempty"`
+	CourseID      string    `json:"course_id"`
+	CourseTitle   string    `json:"course_title,omitempty"`
+	Title         string    `json:"title"`
+	Score         *float64  `json:"score"`
+	LetterGrade   *string   `json:"letter_grade"`
+	Comment       string    `json:"comment,omitempty"`
+	GradedBy      string    `json:"graded_by"`
+	GradedAt      time.Time `json:"graded_at"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type Notification struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Type      string    `json:"type"`
+	Title     string    `json:"title"`
+	Message   string    `json:"message"`
+	Link      string    `json:"link,omitempty"`
+	IsRead    bool      `json:"is_read"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Assignment struct {
+	ID          string    `json:"id"`
+	CourseID    string    `json:"course_id"`
+	CourseTitle string    `json:"course_title,omitempty"`
+	Title       string    `json:"title"`
+	Description string    `json:"description,omitempty"`
+	DueDate     *string   `json:"due_date,omitempty"`
+	MaxScore    float64   `json:"max_score"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Submission struct {
+	ID            string     `json:"id"`
+	AssignmentID  string     `json:"assignment_id"`
+	StudentUserID string     `json:"student_user_id"`
+	StudentName   string     `json:"student_name,omitempty"`
+	Content       string     `json:"content,omitempty"`
+	Link          string     `json:"link,omitempty"`
+	Score         *float64   `json:"score"`
+	Feedback      string     `json:"feedback,omitempty"`
+	SubmittedAt   time.Time  `json:"submitted_at"`
+	GradedAt      *time.Time `json:"graded_at"`
+}
+
+type Message struct {
+	ID         string    `json:"id"`
+	FromUserID string    `json:"from_user_id"`
+	FromName   string    `json:"from_name,omitempty"`
+	ToUserID   string    `json:"to_user_id"`
+	ToName     string    `json:"to_name,omitempty"`
+	Content    string    `json:"content"`
+	IsRead     bool      `json:"is_read"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type Conversation struct {
+	UserID      string    `json:"user_id"`
+	UserName    string    `json:"user_name"`
+	UserEmail   string    `json:"user_email"`
+	LastMessage string    `json:"last_message"`
+	LastTime    time.Time `json:"last_time"`
+	UnreadCount int       `json:"unread_count"`
+}
+
+type CurriculumTopic struct {
+	ID          string    `json:"id"`
+	CourseID    string    `json:"course_id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	SortOrder   int       `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type CourseMaterial struct {
+	ID          string    `json:"id"`
+	CourseID    string    `json:"course_id"`
+	FileName    string    `json:"file_name"`
+	FilePath    string    `json:"-"`
+	FileSize    int64     `json:"file_size"`
+	ContentType string    `json:"content_type"`
+	UploadedBy  string    `json:"uploaded_by"`
+	CreatedAt   time.Time `json:"created_at"`
+}

@@ -3,11 +3,12 @@ import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
 import {
     Users, GraduationCap, DollarSign, BookOpen, Clock, Star, Eye,
-    TrendingUp, Calendar, Megaphone, UserPlus, BarChart3
+    TrendingUp, Calendar, Megaphone, UserPlus, BarChart3, Bell, ClipboardList
 } from 'lucide-react';
 import CourseInvitationModal from '../components/CourseInvitationModal';
 import RatingModal from '../components/RatingModal';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 interface EnrollmentWithCourse {
     enrollment: {
@@ -19,7 +20,7 @@ interface EnrollmentWithCourse {
         id: string;
         title: string;
         description: string;
-        schedule: string;
+        schedule: { days?: string[]; start_time?: string; end_time?: string } | null;
         teacher_id?: string;
         teacher_name?: string;
         teacher_email?: string;
@@ -319,9 +320,44 @@ function StudentDashboard({
         },
     });
 
+    const { data: notifications } = useQuery<any[]>({
+        queryKey: ['notifications'],
+        queryFn: async () => { const res = await api.get('/api/notifications'); return res.data; },
+    });
+
+    const { data: assignments } = useQuery<any[]>({
+        queryKey: ['assignments'],
+        queryFn: async () => { const res = await api.get('/api/assignments'); return res.data; },
+    });
+
     const overallAttendance = attendanceSummary?.length
         ? Math.round(attendanceSummary.reduce((s: number, a: any) => s + a.percentage, 0) / attendanceSummary.length)
         : 0;
+
+    const timeAgo = (dateStr: string) => {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const minutes = Math.floor(diff / 60000);
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    };
+
+    const upcomingAssignments = (assignments || [])
+        .filter((a: any) => a.due_date && new Date(a.due_date) >= new Date())
+        .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+        .slice(0, 5);
+
+    const unreadNotifications = (notifications || []).filter((n: any) => !n.is_read).slice(0, 5);
+
+    const daysUntil = (dateStr: string) => {
+        const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (diff <= 0) return 'Today';
+        if (diff === 1) return 'Tomorrow';
+        return `${diff} days`;
+    };
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -377,6 +413,70 @@ function StudentDashboard({
                             <p className="text-xl font-bold text-gray-900">{announcements?.length || 0}</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Notifications + Upcoming Assignments Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Recent Notifications */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Bell className="h-4 w-4 text-gray-400" />
+                            Recent Notifications
+                            {unreadNotifications.length > 0 && (
+                                <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                                    {unreadNotifications.length}
+                                </span>
+                            )}
+                        </h3>
+                        <Link to="/notifications" className="text-xs text-indigo-600 hover:underline">View all</Link>
+                    </div>
+                    {unreadNotifications.length === 0 ? (
+                        <div className="px-6 py-6 text-center text-gray-400 text-sm italic">All caught up!</div>
+                    ) : (
+                        <div className="divide-y divide-gray-50">
+                            {unreadNotifications.map((n: any) => (
+                                <div key={n.id} className="px-6 py-3 hover:bg-gray-50 transition-colors">
+                                    <p className="text-sm font-medium text-gray-900">{n.title}</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                                    <p className="text-xs text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Upcoming Assignments */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <ClipboardList className="h-4 w-4 text-gray-400" />
+                            Upcoming Assignments
+                        </h3>
+                        <Link to="/homework" className="text-xs text-indigo-600 hover:underline">View all</Link>
+                    </div>
+                    {upcomingAssignments.length === 0 ? (
+                        <div className="px-6 py-6 text-center text-gray-400 text-sm italic">No upcoming assignments</div>
+                    ) : (
+                        <div className="divide-y divide-gray-50">
+                            {upcomingAssignments.map((a: any) => {
+                                const days = Math.ceil((new Date(a.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                                const urgencyColor = days <= 1 ? 'text-red-600 bg-red-50' : days <= 3 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50';
+                                return (
+                                    <div key={a.id} className="px-6 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
+                                            <p className="text-xs text-gray-500">{a.course_title}</p>
+                                        </div>
+                                        <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${urgencyColor}`}>
+                                            {daysUntil(a.due_date)}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -441,7 +541,9 @@ function StudentDashboard({
                                             )}
                                             {item.course.schedule && (
                                                 <span className="inline-block mt-2 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
-                                                    {item.course.schedule}
+                                                    {typeof item.course.schedule === 'object'
+                                                        ? `${(item.course.schedule.days || []).join(', ')} ${item.course.schedule.start_time || ''}–${item.course.schedule.end_time || ''}`
+                                                        : String(item.course.schedule)}
                                                 </span>
                                             )}
                                         </div>

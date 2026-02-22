@@ -1,9 +1,23 @@
-import { Home, User, BookOpen, LogOut, Users, Calendar, DollarSign, Megaphone } from 'lucide-react';
+import { Home, User, BookOpen, LogOut, Users, Calendar, DollarSign, Megaphone, Clock, Settings, Award, Bell, ClipboardList, MessageSquare, BarChart3 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/axios';
 
 export default function Sidebar() {
     const { logout, user } = useAuth();
+
+    const { data: notifData } = useQuery<{ count: number }>({
+        queryKey: ['notif-unread'],
+        queryFn: () => api.get('/api/notifications/unread-count').then(r => r.data),
+        refetchInterval: 30000,
+    });
+
+    const { data: msgData } = useQuery<{ count: number }>({
+        queryKey: ['msg-unread'],
+        queryFn: () => api.get('/api/messages/unread-count').then(r => r.data),
+        refetchInterval: 15000,
+    });
 
     const navigation = [
         { name: 'Overview', href: '/', icon: Home, visible: true },
@@ -17,6 +31,24 @@ export default function Sidebar() {
             name: 'Courses',
             href: '/courses',
             icon: BookOpen,
+            visible: true
+        },
+        {
+            name: 'Timetable',
+            href: '/timetable',
+            icon: Clock,
+            visible: user?.role === 'student' || user?.role === 'teacher'
+        },
+        {
+            name: 'Grades',
+            href: '/grades',
+            icon: Award,
+            visible: true
+        },
+        {
+            name: 'Homework',
+            href: '/homework',
+            icon: ClipboardList,
             visible: true
         },
         {
@@ -43,7 +75,28 @@ export default function Sidebar() {
             icon: Megaphone,
             visible: true
         },
+        {
+            name: 'Messages',
+            href: '/messages',
+            icon: MessageSquare,
+            visible: true,
+            badge: msgData?.count || 0,
+        },
+        {
+            name: 'Notifications',
+            href: '/notifications',
+            icon: Bell,
+            visible: true,
+            badge: notifData?.count || 0,
+        },
+        {
+            name: 'Reports',
+            href: '/reports',
+            icon: BarChart3,
+            visible: user?.role === 'school_admin'
+        },
         { name: 'Profile', href: '/profile', icon: User, visible: true },
+        { name: 'Settings', href: '/settings', icon: Settings, visible: true },
     ];
 
     return (
@@ -56,12 +109,12 @@ export default function Sidebar() {
             {user && (
                 <div className="mb-6 px-2 text-sm text-gray-400">
                     <p>Welcome,</p>
-                    <p className="font-semibold text-white">{user.email}</p>
+                    <p className="font-semibold text-white">{user.name || user.email}</p>
                     <p className="text-xs uppercase mt-1 text-indigo-400 border border-indigo-400 rounded w-max px-1">{user.role}</p>
                 </div>
             )}
 
-            <nav className="flex-1 space-y-1">
+            <nav className="flex-1 space-y-1 overflow-y-auto">
                 {navigation.filter(item => item.visible).map((item) => (
                     <NavLink
                         key={item.name}
@@ -74,7 +127,12 @@ export default function Sidebar() {
                         }
                     >
                         <item.icon className="h-5 w-5" />
-                        {item.name}
+                        <span className="flex-1">{item.name}</span>
+                        {'badge' in item && (item as any).badge > 0 && (
+                            <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                                {(item as any).badge > 99 ? '99+' : (item as any).badge}
+                            </span>
+                        )}
                     </NavLink>
                 ))}
             </nav>

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
-import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign } from 'lucide-react';
+import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image } from 'lucide-react';
 
 interface Schedule {
     days: string[];
@@ -35,6 +35,25 @@ interface Enrollment {
 interface EnrollmentWithCourse {
     enrollment: Enrollment;
     course: Course;
+}
+
+interface CurriculumTopic {
+    id: string;
+    course_id: string;
+    title: string;
+    description: string;
+    sort_order: number;
+    created_at: string;
+}
+
+interface CourseMaterial {
+    id: string;
+    course_id: string;
+    file_name: string;
+    file_size: number;
+    content_type: string;
+    uploaded_by: string;
+    created_at: string;
 }
 
 export default function CourseList() {
@@ -294,12 +313,10 @@ export default function CourseList() {
                     onSuccess={() => {
                         setIsInviteModalOpen(false);
                         setSelectedCourseId(null);
-                        // Optionally show success message
                     }}
                 />
-            )
-            }
-        </div >
+            )}
+        </div>
     );
 }
 
@@ -315,146 +332,416 @@ function CourseDetailsModal({
     onRequestAccess?: () => void,
     onRespond?: (enrollmentId: string, accept: boolean) => void
 }) {
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+    const [activeTab, setActiveTab] = useState<'details' | 'curriculum' | 'materials'>('details');
+    const isTeacher = user?.role === 'teacher' || user?.role === 'school_admin';
+    const isEnrolled = enrollment?.status === 'active';
+    const canViewContent = isTeacher || isEnrolled;
+
+    // ── Curriculum state ──
+    const [newTopicTitle, setNewTopicTitle] = useState('');
+    const [newTopicDesc, setNewTopicDesc] = useState('');
+    const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+    const [editTitle, setEditTitle] = useState('');
+    const [editDesc, setEditDesc] = useState('');
+
+    const { data: topics, isLoading: topicsLoading } = useQuery<CurriculumTopic[]>({
+        queryKey: ['curriculum', course.id],
+        queryFn: async () => { const res = await api.get(`/api/courses/${course.id}/curriculum`); return res.data; },
+        enabled: activeTab === 'curriculum' && canViewContent,
+    });
+
+    const addTopicMutation = useMutation({
+        mutationFn: async () => {
+            return api.post(`/api/courses/${course.id}/curriculum`, {
+                title: newTopicTitle, description: newTopicDesc, sort_order: (topics?.length ?? 0),
+            });
+        },
+        onSuccess: () => { setNewTopicTitle(''); setNewTopicDesc(''); queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }); },
+    });
+
+    const updateTopicMutation = useMutation({
+        mutationFn: async ({ id, sort_order }: { id: string; sort_order: number }) => {
+            return api.put(`/api/courses/${course.id}/curriculum/${id}`, { title: editTitle, description: editDesc, sort_order });
+        },
+        onSuccess: () => { setEditingTopicId(null); queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }); },
+    });
+
+    const deleteTopicMutation = useMutation({
+        mutationFn: async (id: string) => api.delete(`/api/courses/${course.id}/curriculum/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }),
+    });
+
+    // ── Materials state ──
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploading, setUploading] = useState(false);
+
+    const { data: materials, isLoading: materialsLoading } = useQuery<CourseMaterial[]>({
+        queryKey: ['materials', course.id],
+        queryFn: async () => { const res = await api.get(`/api/courses/${course.id}/materials`); return res.data; },
+        enabled: activeTab === 'materials' && canViewContent,
+    });
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            await api.post(`/api/courses/${course.id}/materials`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            queryClient.invalidateQueries({ queryKey: ['materials', course.id] });
+        } catch (err: any) {
+            alert('Upload failed: ' + (err.response?.data || err.message));
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const deleteMaterialMutation = useMutation({
+        mutationFn: async (id: string) => api.delete(`/api/materials/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials', course.id] }),
+    });
+
+    const handleDownload = async (m: CourseMaterial) => {
+        try {
+            const res = await api.get(`/api/materials/${m.id}/download`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const a = document.createElement('a');
+            a.href = url; a.download = m.file_name; document.body.appendChild(a); a.click();
+            window.URL.revokeObjectURL(url); document.body.removeChild(a);
+        } catch (err: any) {
+            alert('Download failed: ' + (err.response?.data || err.message));
+        }
+    };
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
+    const getFileIcon = (ct: string) => {
+        if (ct === 'application/pdf') return <FileText className="h-5 w-5 text-red-500" />;
+        if (ct.startsWith('image/')) return <Image className="h-5 w-5 text-blue-500" />;
+        return <FileText className="h-5 w-5 text-gray-500" />;
+    };
+
+    const tabs = [
+        { key: 'details' as const, label: 'Details' },
+        { key: 'curriculum' as const, label: 'Curriculum' },
+        { key: 'materials' as const, label: 'Materials' },
+    ];
+
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} aria-hidden="true"></div>
                 <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div className="sm:flex sm:items-start">
-                            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
-                                <BookOpen className="h-6 w-6 text-indigo-600" />
-                            </div>
-                            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="text-2xl leading-6 font-bold text-gray-900" id="modal-title">
-                                        {course.title}
-                                    </h3>
-                                    <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
-                                        <X className="h-6 w-6" />
-                                    </button>
+                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                    {/* Header */}
+                    <div className="bg-white px-6 pt-5 pb-0">
+                        <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100">
+                                    <BookOpen className="h-6 w-6 text-indigo-600" />
                                 </div>
-                                <div className="mt-4">
-                                    <p className="text-sm text-gray-500 mb-6">
-                                        {course.description}
-                                    </p>
+                                <h3 className="text-2xl leading-6 font-bold text-gray-900" id="modal-title">{course.title}</h3>
+                            </div>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-500"><X className="h-6 w-6" /></button>
+                        </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                        <div className="bg-gray-50 p-4 rounded-lg">
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
-                                            {course.schedule ? (
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center text-sm text-gray-700">
-                                                        <Calendar className="h-4 w-4 mr-2 text-indigo-500" />
-                                                        <span>{course.schedule.start_date} - {course.schedule.end_date}</span>
-                                                    </div>
-                                                    <div className="flex items-center text-sm text-gray-700">
-                                                        <Clock className="h-4 w-4 mr-2 text-indigo-500" />
-                                                        <span>{course.schedule.days.join(', ')}</span>
-                                                    </div>
-                                                    <div className="flex items-center text-sm text-gray-700 ml-6">
-                                                        <span>{course.schedule.start_time} - {course.schedule.end_time}</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <span className="text-sm text-gray-500 italic">No schedule available</span>
-                                            )}
-                                        </div>
+                        {/* Tabs */}
+                        <div className="mt-4 border-b border-gray-200">
+                            <nav className="-mb-px flex space-x-8">
+                                {tabs.map(tab => (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => setActiveTab(tab.key)}
+                                        className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
+                                            ? 'border-indigo-500 text-indigo-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+                    </div>
 
-                                        <div className="bg-gray-50 p-4 rounded-lg">
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Details</h4>
+                    {/* Tab Content */}
+                    <div className="px-6 py-5 max-h-[60vh] overflow-y-auto">
+                        {/* ──── Details Tab ──── */}
+                        {activeTab === 'details' && (
+                            <div>
+                                <p className="text-sm text-gray-500 mb-6">{course.description}</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
+                                        {course.schedule ? (
                                             <div className="space-y-3">
                                                 <div className="flex items-center text-sm text-gray-700">
-                                                    <User className="h-4 w-4 mr-2 text-amber-500" />
-                                                    <span className="font-medium">Teacher:</span>
-                                                    <span className="ml-1">{course.teacher_name || 'Unknown'}</span>
+                                                    <Calendar className="h-4 w-4 mr-2 text-indigo-500" />
+                                                    <span>{course.schedule.start_date} - {course.schedule.end_date}</span>
                                                 </div>
                                                 <div className="flex items-center text-sm text-gray-700">
-                                                    <School className="h-4 w-4 mr-2 text-blue-500" />
-                                                    <span className="font-medium">School:</span>
-                                                    <span className="ml-1">{course.school_name || 'N/A'}</span>
+                                                    <Clock className="h-4 w-4 mr-2 text-indigo-500" />
+                                                    <span>{course.schedule.days.join(', ')}</span>
                                                 </div>
-                                                <div className="flex items-center text-sm text-gray-700">
-                                                    <DollarSign className="h-4 w-4 mr-2 text-green-600" />
-                                                    <span className="font-medium">Price:</span>
-                                                    <span className="ml-1 font-bold text-gray-900">TJS {course.price.toLocaleString()}</span>
+                                                <div className="flex items-center text-sm text-gray-700 ml-6">
+                                                    <span>{course.schedule.start_time} - {course.schedule.end_time}</span>
                                                 </div>
-                                                {enrollment && (
-                                                    <div className="flex items-center text-sm">
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${enrollment.status === 'active' ? 'bg-green-100 text-green-800' :
-                                                            enrollment.status === 'invited' ? 'bg-blue-100 text-blue-800' :
-                                                                enrollment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                                                            }`}>
-                                                            Status: {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
-                                                        </span>
-                                                    </div>
-                                                )}
                                             </div>
+                                        ) : (
+                                            <span className="text-sm text-gray-500 italic">No schedule available</span>
+                                        )}
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Details</h4>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center text-sm text-gray-700">
+                                                <User className="h-4 w-4 mr-2 text-amber-500" />
+                                                <span className="font-medium">Teacher:</span>
+                                                <span className="ml-1">{course.teacher_name || 'Unknown'}</span>
+                                            </div>
+                                            <div className="flex items-center text-sm text-gray-700">
+                                                <School className="h-4 w-4 mr-2 text-blue-500" />
+                                                <span className="font-medium">School:</span>
+                                                <span className="ml-1">{course.school_name || 'N/A'}</span>
+                                            </div>
+                                            <div className="flex items-center text-sm text-gray-700">
+                                                <DollarSign className="h-4 w-4 mr-2 text-green-600" />
+                                                <span className="font-medium">Price:</span>
+                                                <span className="ml-1 font-bold text-gray-900">TJS {course.price.toLocaleString()}</span>
+                                            </div>
+                                            {enrollment && (
+                                                <div className="flex items-center text-sm">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${enrollment.status === 'active' ? 'bg-green-100 text-green-800' :
+                                                        enrollment.status === 'invited' ? 'bg-blue-100 text-blue-800' :
+                                                            enrollment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                                                        }`}>
+                                                        Status: {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
-                        {canInvite && (
-                            <button
-                                type="button"
-                                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
-                                onClick={onInvite}
-                            >
-                                <Mail className="h-4 w-4 mr-2" />
-                                Invite Student
-                            </button>
                         )}
 
+                        {/* ──── Curriculum Tab ──── */}
+                        {activeTab === 'curriculum' && (
+                            <div>
+                                {!canViewContent ? (
+                                    <div className="text-center py-8 text-gray-500">
+                                        <BookOpen className="mx-auto h-10 w-10 text-gray-300 mb-3" />
+                                        <p className="text-sm">You must be enrolled in this course to view the curriculum.</p>
+                                    </div>
+                                ) : topicsLoading ? (
+                                    <div className="text-center py-8 text-gray-500 italic">Loading curriculum...</div>
+                                ) : (
+                                    <>
+                                        {/* Topic list */}
+                                        {(!topics || topics.length === 0) ? (
+                                            <div className="text-center py-8 text-gray-400">
+                                                <FileText className="mx-auto h-10 w-10 mb-3" />
+                                                <p className="text-sm">No curriculum topics added yet.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {topics.map((topic, idx) => (
+                                                    <div key={topic.id} className="flex items-start gap-3 bg-gray-50 rounded-lg p-4 group">
+                                                        <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">
+                                                            {idx + 1}
+                                                        </div>
+                                                        {editingTopicId === topic.id ? (
+                                                            <div className="flex-1 space-y-2">
+                                                                <input
+                                                                    type="text" value={editTitle}
+                                                                    onChange={e => setEditTitle(e.target.value)}
+                                                                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                                                                />
+                                                                <textarea
+                                                                    value={editDesc} onChange={e => setEditDesc(e.target.value)}
+                                                                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" rows={2}
+                                                                />
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={() => updateTopicMutation.mutate({ id: topic.id, sort_order: topic.sort_order })}
+                                                                        className="inline-flex items-center text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                                                                        <Check className="h-3 w-3 mr-1" /> Save
+                                                                    </button>
+                                                                    <button onClick={() => setEditingTopicId(null)}
+                                                                        className="text-xs px-2 py-1 text-gray-600 hover:text-gray-800">Cancel</button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex-1">
+                                                                <h4 className="text-sm font-semibold text-gray-900">{topic.title}</h4>
+                                                                {topic.description && <p className="text-xs text-gray-500 mt-1">{topic.description}</p>}
+                                                            </div>
+                                                        )}
+                                                        {isTeacher && editingTopicId !== topic.id && (
+                                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => { setEditingTopicId(topic.id); setEditTitle(topic.title); setEditDesc(topic.description); }}
+                                                                    className="p-1 text-gray-400 hover:text-indigo-600 rounded" title="Edit">
+                                                                    <Edit2 className="h-4 w-4" />
+                                                                </button>
+                                                                <button onClick={() => { if (confirm('Delete this topic?')) deleteTopicMutation.mutate(topic.id); }}
+                                                                    className="p-1 text-gray-400 hover:text-red-600 rounded" title="Delete">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Add topic form (teachers only) */}
+                                        {isTeacher && (
+                                            <div className="mt-6 border-t border-gray-200 pt-4">
+                                                <h4 className="text-sm font-medium text-gray-700 mb-3">Add New Topic</h4>
+                                                <div className="space-y-2">
+                                                    <input
+                                                        type="text" placeholder="Topic title" value={newTopicTitle}
+                                                        onChange={e => setNewTopicTitle(e.target.value)}
+                                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                                    />
+                                                    <textarea
+                                                        placeholder="Description (optional)" value={newTopicDesc}
+                                                        onChange={e => setNewTopicDesc(e.target.value)}
+                                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" rows={2}
+                                                    />
+                                                    <button
+                                                        onClick={() => { if (newTopicTitle.trim()) addTopicMutation.mutate(); }}
+                                                        disabled={addTopicMutation.isPending || !newTopicTitle.trim()}
+                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                                                    >
+                                                        <Plus className="h-4 w-4 mr-1" />
+                                                        {addTopicMutation.isPending ? 'Adding...' : 'Add Topic'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ──── Materials Tab ──── */}
+                        {activeTab === 'materials' && (
+                            <div>
+                                {!canViewContent ? (
+                                    <div className="text-center py-8 text-gray-500">
+                                        <FileText className="mx-auto h-10 w-10 text-gray-300 mb-3" />
+                                        <p className="text-sm">You must be enrolled in this course to view materials.</p>
+                                    </div>
+                                ) : materialsLoading ? (
+                                    <div className="text-center py-8 text-gray-500 italic">Loading materials...</div>
+                                ) : (
+                                    <>
+                                        {/* Upload area (teachers only) */}
+                                        {isTeacher && (
+                                            <div className="mb-6">
+                                                <input type="file" ref={fileInputRef} onChange={handleUpload} accept=".pdf,image/*" className="hidden" />
+                                                <button
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    disabled={uploading}
+                                                    className="w-full border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center gap-2 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors cursor-pointer disabled:opacity-50"
+                                                >
+                                                    <Upload className="h-8 w-8" />
+                                                    <span className="text-sm font-medium">{uploading ? 'Uploading...' : 'Click to upload PDF or image'}</span>
+                                                    <span className="text-xs text-gray-400">Max 32 MB</span>
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Materials list */}
+                                        {(!materials || materials.length === 0) ? (
+                                            <div className="text-center py-8 text-gray-400">
+                                                <FileText className="mx-auto h-10 w-10 mb-3" />
+                                                <p className="text-sm">No materials uploaded yet.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {materials.map(m => (
+                                                    <div key={m.id} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 group hover:bg-gray-100 transition-colors">
+                                                        {getFileIcon(m.content_type)}
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-gray-900 truncate">{m.file_name}</p>
+                                                            <p className="text-xs text-gray-500">{formatFileSize(m.file_size)} · {new Date(m.created_at).toLocaleDateString()}</p>
+                                                        </div>
+                                                        <div className="flex gap-1">
+                                                            <button onClick={() => handleDownload(m)}
+                                                                className="p-1.5 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="Download">
+                                                                <Download className="h-4 w-4" />
+                                                            </button>
+                                                            {isTeacher && (
+                                                                <button onClick={() => { if (confirm('Delete this material?')) deleteMaterialMutation.mutate(m.id); }}
+                                                                    className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100" title="Delete">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
+                        {canInvite && (
+                            <button type="button"
+                                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
+                                onClick={onInvite}>
+                                <Mail className="h-4 w-4 mr-2" /> Invite Student
+                            </button>
+                        )}
                         {isStudent && (
                             <>
                                 {!enrollment && onRequestAccess && (
-                                    <button
-                                        type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
-                                        onClick={onRequestAccess}
-                                    >
+                                    <button type="button"
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:w-auto sm:text-sm"
+                                        onClick={onRequestAccess}>
                                         Request Access
                                     </button>
                                 )}
                                 {enrollment?.status === 'invited' && onRespond && (
                                     <>
-                                        <button
-                                            type="button"
-                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:w-auto sm:text-sm"
-                                            onClick={() => onRespond(enrollment.id, true)}
-                                        >
+                                        <button type="button"
+                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 sm:w-auto sm:text-sm"
+                                            onClick={() => onRespond(enrollment.id, true)}>
                                             Accept Invitation
                                         </button>
-                                        <button
-                                            type="button"
-                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:w-auto sm:text-sm"
-                                            onClick={() => onRespond(enrollment.id, false)}
-                                        >
+                                        <button type="button"
+                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:w-auto sm:text-sm"
+                                            onClick={() => onRespond(enrollment.id, false)}>
                                             Decline
                                         </button>
                                     </>
                                 )}
                                 {enrollment?.status === 'pending' && (
-                                    <button
-                                        type="button"
-                                        disabled
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-yellow-400 text-base font-medium text-white cursor-not-allowed sm:w-auto sm:text-sm"
-                                    >
+                                    <button type="button" disabled
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-yellow-400 text-base font-medium text-white cursor-not-allowed sm:w-auto sm:text-sm">
                                         Request Pending
                                     </button>
                                 )}
                             </>
                         )}
-
-                        <button
-                            type="button"
-                            className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
-                            onClick={onClose}
-                        >
+                        <button type="button"
+                            className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:w-auto sm:text-sm"
+                            onClick={onClose}>
                             Close
                         </button>
                     </div>

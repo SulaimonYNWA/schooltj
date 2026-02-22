@@ -160,3 +160,25 @@ func (s *AuthService) UpdateUser(ctx context.Context, userID, name, email string
 
 	return user, nil
 }
+
+func (s *AuthService) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return errors.New("current password is incorrect")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.UpdatePassword(ctx, userID, string(hashedPassword))
+}
+
+func (s *AuthService) SearchUsers(ctx context.Context, q string) ([]domain.User, error) {
+	return s.repo.SearchUsers(ctx, q)
+}

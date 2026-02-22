@@ -53,7 +53,7 @@ func main() {
 	courseRepo := repository.NewCourseRepository(repo.DB)
 	courseService := service.NewCourseService(courseRepo, schoolRepo, userRepo, studentRepo) // Inject studentRepo
 	schoolService := service.NewSchoolService(schoolRepo, authService, courseService)
-	schoolHandler := handler.NewSchoolHandler(schoolService)
+	schoolHandler := handler.NewSchoolHandler(schoolService, schoolRepo)
 	courseHandler := handler.NewCourseHandler(courseService)
 	ratingRepo := repository.NewRatingRepository(repo.DB)
 	ratingService := service.NewRatingService(ratingRepo)
@@ -70,6 +70,22 @@ func main() {
 	announcementService := service.NewAnnouncementService(announcementRepo)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	dashboardHandler := handler.NewDashboardHandler(repo.DB)
+	settingsHandler := handler.NewSettingsHandler(authService)
+	gradeRepo := repository.NewGradeRepository(repo.DB)
+	gradeService := service.NewGradeService(gradeRepo)
+	gradeHandler := handler.NewGradeHandler(gradeService)
+	notificationRepo := repository.NewNotificationRepository(repo.DB)
+	notificationService := service.NewNotificationService(notificationRepo)
+	notificationHandler := handler.NewNotificationHandler(notificationService)
+	assignmentRepo := repository.NewAssignmentRepository(repo.DB)
+	assignmentService := service.NewAssignmentService(assignmentRepo)
+	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
+	messageRepo := repository.NewMessageRepository(repo.DB)
+	messageService := service.NewMessageService(messageRepo)
+	messageHandler := handler.NewMessageHandler(messageService)
+	courseContentRepo := repository.NewCourseContentRepository(repo.DB)
+	courseContentService := service.NewCourseContentService(courseContentRepo, courseRepo)
+	courseContentHandler := handler.NewCourseContentHandler(courseContentService)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -95,8 +111,11 @@ func main() {
 		r.Use(handler.AuthMiddleware(authService))
 		r.Get("/me", authHandler.GetProfile)
 		r.Put("/me", authHandler.UpdateProfile)
+		r.Get("/api/users/search", authHandler.SearchUsers)
 		r.Get("/api/schools/teachers", schoolHandler.ListTeachers)
 		r.Post("/api/schools/teachers", schoolHandler.AddTeacher)
+		r.Get("/api/schools", schoolHandler.ListSchools)
+		r.Get("/api/schools/{id}", schoolHandler.GetSchoolDetail)
 
 		// Course routes
 		r.Get("/api/courses", courseHandler.List)
@@ -107,6 +126,16 @@ func main() {
 		r.Get("/api/my-enrollments", courseHandler.MyEnrollments)
 		r.Get("/api/courses/{id}/enrollments", courseHandler.CourseEnrollments)
 		r.Post("/api/enrollments/{id}/approve", courseHandler.ApproveEnrollment)
+
+		// Course content routes (curriculum & materials)
+		r.Get("/api/courses/{id}/curriculum", courseContentHandler.ListTopics)
+		r.Post("/api/courses/{id}/curriculum", courseContentHandler.AddTopic)
+		r.Put("/api/courses/{id}/curriculum/{topicId}", courseContentHandler.UpdateTopic)
+		r.Delete("/api/courses/{id}/curriculum/{topicId}", courseContentHandler.DeleteTopic)
+		r.Get("/api/courses/{id}/materials", courseContentHandler.ListMaterials)
+		r.Post("/api/courses/{id}/materials", courseContentHandler.UploadMaterial)
+		r.Get("/api/materials/{id}/download", courseContentHandler.DownloadMaterial)
+		r.Delete("/api/materials/{id}", courseContentHandler.DeleteMaterial)
 
 		// Rating routes
 		r.Post("/api/ratings", ratingHandler.SubmitRating)
@@ -135,6 +164,34 @@ func main() {
 		// Dashboard routes
 		r.Get("/api/dashboard/stats", dashboardHandler.GetStats)
 		r.Get("/api/dashboard/activity", dashboardHandler.GetActivity)
+
+		// Settings routes
+		r.Post("/api/settings/change-password", settingsHandler.ChangePassword)
+
+		// Grade routes
+		r.Post("/api/courses/{id}/grades", gradeHandler.CreateGrade)
+		r.Get("/api/courses/{id}/grades", gradeHandler.ListCourseGrades)
+		r.Get("/api/my-grades", gradeHandler.MyGrades)
+
+		// Notification routes
+		r.Get("/api/notifications", notificationHandler.List)
+		r.Get("/api/notifications/unread-count", notificationHandler.UnreadCount)
+		r.Post("/api/notifications/mark-all-read", notificationHandler.MarkAllRead)
+		r.Post("/api/notifications/{id}/read", notificationHandler.MarkRead)
+
+		// Assignment routes
+		r.Post("/api/courses/{id}/assignments", assignmentHandler.Create)
+		r.Get("/api/courses/{id}/assignments", assignmentHandler.ListByCourse)
+		r.Get("/api/my-assignments", assignmentHandler.MyAssignments)
+		r.Post("/api/assignments/{id}/submit", assignmentHandler.Submit)
+		r.Get("/api/assignments/{id}/submissions", assignmentHandler.ListSubmissions)
+		r.Post("/api/submissions/{id}/grade", assignmentHandler.GradeSubmission)
+
+		// Message routes
+		r.Post("/api/messages", messageHandler.Send)
+		r.Get("/api/messages/conversations", messageHandler.ListConversations)
+		r.Get("/api/messages/unread-count", messageHandler.UnreadCount)
+		r.Get("/api/messages/{userId}", messageHandler.GetConversation)
 	})
 
 	port := os.Getenv("PORT")

@@ -13,6 +13,14 @@ import Students from './pages/Students';
 import Attendance from './pages/Attendance';
 import Payments from './pages/Payments';
 import Announcements from './pages/Announcements';
+import Timetable from './pages/Timetable';
+import Settings from './pages/Settings';
+import Grades from './pages/Grades';
+import SchoolDetail from './pages/SchoolDetail';
+import Notifications from './pages/Notifications';
+import Homework from './pages/Homework';
+import Messages from './pages/Messages';
+import Reports from './pages/Reports';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -43,6 +51,14 @@ function App() {
               <Route path="/payments" element={<Payments />} />
               <Route path="/announcements" element={<Announcements />} />
               <Route path="/add-teacher" element={<AddTeacher />} />
+              <Route path="/timetable" element={<Timetable />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/grades" element={<Grades />} />
+              <Route path="/schools/:id" element={<SchoolDetail />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/homework" element={<Homework />} />
+              <Route path="/messages" element={<Messages />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Routes>
