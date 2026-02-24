@@ -19,6 +19,7 @@ type User struct {
 	Name         string    `json:"name"`
 	PasswordHash string    `json:"-"`
 	Role         Role      `json:"role"`
+	AvatarURL    *string   `json:"avatar_url"`
 	RatingAvg    float64   `json:"rating_avg"`
 	RatingCount  int       `json:"rating_count"`
 	CreatedAt    time.Time `json:"created_at"`

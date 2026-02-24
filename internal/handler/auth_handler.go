@@ -71,6 +71,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
+		log.Printf("Login error: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -115,6 +116,53 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(user)
+}
+
+type updateAvatarRequest struct {
+	AvatarURL string `json:"avatar_url"`
+}
+
+func (h *AuthHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req updateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.AvatarURL == "" {
+		http.Error(w, "avatar_url is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.UpdateAvatar(r.Context(), userID, req.AvatarURL); err != nil {
+		log.Printf("UpdateAvatar error: %v", err)
+		http.Error(w, "failed to update avatar", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *AuthHandler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteAvatar(r.Context(), userID); err != nil {
+		log.Printf("DeleteAvatar error: %v", err)
+		http.Error(w, "failed to delete avatar", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // SearchUsers handles GET /api/users/search?q=...

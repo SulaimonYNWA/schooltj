@@ -30,31 +30,39 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 }
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT id, email, name, password_hash, role, created_at, updated_at FROM users WHERE email = ?`
+	query := `SELECT id, email, name, password_hash, role, avatar_url, created_at, updated_at FROM users WHERE email = ?`
 	row := r.DB.QueryRowContext(ctx, query, email)
 
 	var user domain.User
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+	var avatarURL sql.NullString
+	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &avatarURL, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
+	if avatarURL.Valid {
+		user.AvatarURL = &avatarURL.String
+	}
 	return &user, nil
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*domain.User, error) {
-	query := `SELECT id, email, name, password_hash, role, created_at, updated_at FROM users WHERE id = ?`
+	query := `SELECT id, email, name, password_hash, role, avatar_url, created_at, updated_at FROM users WHERE id = ?`
 	row := r.DB.QueryRowContext(ctx, query, id)
 
 	var user domain.User
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+	var avatarURL sql.NullString
+	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &avatarURL, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
+	}
+	if avatarURL.Valid {
+		user.AvatarURL = &avatarURL.String
 	}
 	return &user, nil
 }
@@ -62,6 +70,12 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*domain.Us
 func (r *UserRepository) UpdateUser(ctx context.Context, user *domain.User) error {
 	query := `UPDATE users SET email = ?, name = ?, updated_at = NOW() WHERE id = ?`
 	_, err := r.DB.ExecContext(ctx, query, user.Email, user.Name, user.ID)
+	return err
+}
+
+func (r *UserRepository) UpdateAvatarURL(ctx context.Context, userID string, avatarURL *string) error {
+	query := `UPDATE users SET avatar_url = ?, updated_at = NOW() WHERE id = ?`
+	_, err := r.DB.ExecContext(ctx, query, avatarURL, userID)
 	return err
 }
 

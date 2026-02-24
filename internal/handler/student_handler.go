@@ -50,11 +50,7 @@ func (h *StudentHandler) ListMyStudents(w http.ResponseWriter, r *http.Request) 
 	}
 
 	role, ok := r.Context().Value(RoleContextKey).(domain.Role)
-	// Role might be string in context if middleware puts it as string, let's check middleware again.
-	// Middleware: ctx = context.WithValue(ctx, RoleContextKey, domain.Role(roleStr))
-	// So it is domain.Role.
 	if !ok {
-		// Fallback if type assertion fails (e.g. if it was string)
 		roleStr, okStr := r.Context().Value(RoleContextKey).(string)
 		if okStr {
 			role = domain.Role(roleStr)
@@ -67,6 +63,82 @@ func (h *StudentHandler) ListMyStudents(w http.ResponseWriter, r *http.Request) 
 	students, err := h.service.GetMyStudents(r.Context(), userID, role)
 	if err != nil {
 		http.Error(w, "failed to fetch my students", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(students)
+}
+
+func (h *StudentHandler) ListByCourse(w http.ResponseWriter, r *http.Request) {
+	courseID := r.URL.Query().Get("course_id")
+	if courseID == "" {
+		http.Error(w, "course_id is required", http.StatusBadRequest)
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 50
+	}
+
+	offsetStr := r.URL.Query().Get("offset")
+	offset, _ := strconv.Atoi(offsetStr)
+	if offset < 0 {
+		offset = 0
+	}
+
+	search := r.URL.Query().Get("search")
+
+	students, err := h.service.GetStudentsByCourse(r.Context(), courseID, limit, offset, search)
+	if err != nil {
+		http.Error(w, "failed to fetch students by course", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(students)
+}
+
+func (h *StudentHandler) ListConnections(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 50
+	}
+
+	offsetStr := r.URL.Query().Get("offset")
+	offset, _ := strconv.Atoi(offsetStr)
+	if offset < 0 {
+		offset = 0
+	}
+
+	search := r.URL.Query().Get("search")
+
+	students, err := h.service.GetConnectedStudents(r.Context(), userID, limit, offset, search)
+	if err != nil {
+		http.Error(w, "failed to fetch connected students", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(students)
+}
+
+func (h *StudentHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		json.NewEncoder(w).Encode([]interface{}{})
+		return
+	}
+
+	students, err := h.service.SearchSuggestions(r.Context(), q)
+	if err != nil {
+		http.Error(w, "failed to search students", http.StatusInternalServerError)
 		return
 	}
 

@@ -30,3 +30,15 @@ func (s *StudentService) GetMyStudents(ctx context.Context, userID string, role 
 		return []domain.User{}, nil
 	}
 }
+
+func (s *StudentService) GetStudentsByCourse(ctx context.Context, courseID string, limit, offset int, search string) ([]domain.User, error) {
+	return s.repo.ListStudentsByCourse(ctx, courseID, limit, offset, search)
+}
+
+func (s *StudentService) GetConnectedStudents(ctx context.Context, userID string, limit, offset int, search string) ([]domain.User, error) {
+	return s.repo.ListStudentsByConnection(ctx, userID, limit, offset, search)
+}
+
+func (s *StudentService) SearchSuggestions(ctx context.Context, query string) ([]domain.User, error) {
+	return s.repo.SearchStudentSuggestions(ctx, query)
+}

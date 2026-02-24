@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Mail, Save, Edit2, Shield, Clock } from 'lucide-react';
+import { User, Mail, Save, Edit2, Shield, Clock, Camera, Trash2, Loader2 } from 'lucide-react';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from '../lib/firebase';
 
 export default function Profile() {
     const { user: authUser } = useAuth();
@@ -13,6 +15,9 @@ export default function Profile() {
         email: '',
     });
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (authUser) {
@@ -43,9 +48,118 @@ export default function Profile() {
         }
     });
 
+    const updateAvatarMutation = useMutation({
+        mutationFn: async (avatar_url: string) => {
+            const response = await api.put('/me/avatar', { avatar_url });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['me'] });
+            setMessage({ type: 'success', text: 'Avatar updated successfully!' });
+            setTimeout(() => setMessage(null), 3000);
+        },
+        onError: (error: any) => {
+            setMessage({
+                type: 'error',
+                text: error.response?.data || 'Failed to save avatar URL to profile'
+            });
+            setTimeout(() => setMessage(null), 5000);
+        }
+    });
+
+    const deleteAvatarMutation = useMutation({
+        mutationFn: async () => {
+            await api.delete('/me/avatar');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['me'] });
+            setMessage({ type: 'success', text: 'Avatar removed successfully!' });
+            setTimeout(() => setMessage(null), 3000);
+        },
+        onError: (error: any) => {
+            setMessage({
+                type: 'error',
+                text: error.response?.data || 'Failed to remove avatar from profile'
+            });
+            setTimeout(() => setMessage(null), 3000);
+        }
+    });
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         updateProfileMutation.mutate(formData);
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !authUser) return;
+
+        // Basic validation
+        if (!file.type.startsWith('image/')) {
+            setMessage({ type: 'error', text: 'Please select an image file.' });
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            setMessage({ type: 'error', text: 'Image must be less than 5MB.' });
+            return;
+        }
+
+        try {
+            setUploadingAvatar(true);
+            setUploadProgress(0);
+
+            // Create a unique filename
+            const ext = file.name.split('.').pop() || 'jpg';
+            const filename = `avatars/${authUser.id}-${Date.now()}.${ext}`;
+            const storageRef = ref(storage, filename);
+
+            const uploadTask = uploadBytesResumable(storageRef, file);
+
+            uploadTask.on('state_changed',
+                (snapshot: any) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    setUploadProgress(Math.round(progress));
+                },
+                (error: any) => {
+                    console.error("Firebase upload error:", error);
+                    setMessage({ type: 'error', text: 'Failed to upload image.' });
+                    setUploadingAvatar(false);
+                },
+                async () => {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    updateAvatarMutation.mutate(downloadURL);
+                    setUploadingAvatar(false);
+                }
+            );
+        } catch (error) {
+            console.error("Upload process error:", error);
+            setMessage({ type: 'error', text: 'An unexpected error occurred during upload.' });
+            setUploadingAvatar(false);
+        } finally {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleDeleteAvatar = async () => {
+        if (!authUser?.avatar_url) return;
+
+        if (window.confirm('Are you sure you want to remove your profile picture?')) {
+            try {
+                // Try to delete from Firebase storage if it's a firebase URL
+                if (authUser.avatar_url.includes('firebasestorage')) {
+                    const storageRef = ref(storage, authUser.avatar_url);
+                    await deleteObject(storageRef).catch((e: any) => console.warn("Could not delete from Firebase, might already be gone:", e));
+                }
+
+                // Remove from our backend
+                deleteAvatarMutation.mutate();
+            } catch (error) {
+                console.error("Delete avatar error:", error);
+                setMessage({ type: 'error', text: 'Failed to delete avatar image.' });
+            }
+        }
     };
 
     if (!authUser) return <div className="p-8">Loading...</div>;
@@ -71,9 +185,60 @@ export default function Profile() {
                     <div className="flex flex-col md:flex-row gap-10">
                         {/* Avatar Section */}
                         <div className="flex flex-col items-center">
-                            <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-4 border-white shadow-lg">
-                                <User size={64} className="text-gray-400" />
+                            <div className="relative group">
+                                <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-4 border-white shadow-lg relative">
+                                    {uploadingAvatar ? (
+                                        <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10">
+                                            <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
+                                            <span className="text-xs font-medium text-blue-700">{uploadProgress}%</span>
+                                        </div>
+                                    ) : null}
+
+                                    {authUser.avatar_url ? (
+                                        <img
+                                            src={authUser.avatar_url}
+                                            alt={authUser.name}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                // Fallback if image fails to load
+                                                (e.target as HTMLImageElement).src = '';
+                                                (e.target as HTMLImageElement).onerror = null;
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                (e.target as HTMLImageElement).parentElement?.querySelector('svg')?.classList.remove('hidden');
+                                            }}
+                                        />
+                                    ) : null}
+
+                                    <User size={64} className={`text-gray-400 ${authUser.avatar_url ? 'hidden' : ''}`} />
+                                </div>
+
+                                {/* Hover overlay for uploading */}
+                                <label className={`absolute inset-0 rounded-full bg-black/50 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity ${uploadingAvatar ? 'hidden' : ''}`}>
+                                    <Camera size={24} className="mb-1" />
+                                    <span className="text-xs font-medium">Change Photo</span>
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/jpeg,image/png,image/webp,image/gif"
+                                        onChange={handleFileChange}
+                                        ref={fileInputRef}
+                                        disabled={uploadingAvatar || updateAvatarMutation.isPending}
+                                    />
+                                </label>
+
+                                {/* Delete button */}
+                                {authUser.avatar_url && !uploadingAvatar && (
+                                    <button
+                                        onClick={handleDeleteAvatar}
+                                        disabled={deleteAvatarMutation.isPending}
+                                        className="absolute bottom-0 right-0 bg-red-100 text-red-600 p-2 rounded-full shadow-sm hover:bg-red-200 transition-colors border-2 border-white"
+                                        title="Remove photo"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
                             </div>
+
                             <div className="mt-4 text-center">
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 uppercase tracking-wider">
                                     {authUser.role}
@@ -197,7 +362,7 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* Security Section (Placeholder for future) */}
+            {/* Security Section */}
             <div className="mt-8 bg-white shadow rounded-2xl border border-gray-100 p-6 sm:p-10">
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">Account Security</h2>
                 <div className="flex items-center justify-between py-4 border-b border-gray-50">

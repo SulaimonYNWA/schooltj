@@ -111,6 +111,8 @@ func main() {
 		r.Use(handler.AuthMiddleware(authService))
 		r.Get("/me", authHandler.GetProfile)
 		r.Put("/me", authHandler.UpdateProfile)
+		r.Put("/me/avatar", authHandler.UpdateAvatar)
+		r.Delete("/me/avatar", authHandler.DeleteAvatar)
 		r.Get("/api/users/search", authHandler.SearchUsers)
 		r.Get("/api/schools/teachers", schoolHandler.ListTeachers)
 		r.Post("/api/schools/teachers", schoolHandler.AddTeacher)
@@ -142,6 +144,9 @@ func main() {
 
 		// Student routes
 		r.Get("/api/students", studentHandler.List)
+		r.Get("/api/students/suggestions", studentHandler.Suggestions)
+		r.Get("/api/students/by-course", studentHandler.ListByCourse)
+		r.Get("/api/students/connections", studentHandler.ListConnections)
 		r.Get("/api/my-students", studentHandler.ListMyStudents)
 
 		// Attendance routes

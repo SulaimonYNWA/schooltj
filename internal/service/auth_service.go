@@ -161,6 +161,14 @@ func (s *AuthService) UpdateUser(ctx context.Context, userID, name, email string
 	return user, nil
 }
 
+func (s *AuthService) UpdateAvatar(ctx context.Context, userID, avatarURL string) error {
+	return s.repo.UpdateAvatarURL(ctx, userID, &avatarURL)
+}
+
+func (s *AuthService) DeleteAvatar(ctx context.Context, userID string) error {
+	return s.repo.UpdateAvatarURL(ctx, userID, nil)
+}
+
 func (s *AuthService) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
 	user, err := s.repo.GetUserByID(ctx, userID)
 	if err != nil {

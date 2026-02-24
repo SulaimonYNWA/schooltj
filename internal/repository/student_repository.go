@@ -160,3 +160,104 @@ func (r *StudentRepository) GetStudentsBySchoolAdminID(ctx context.Context, admi
 	}
 	return r.ListStudentsBySchool(ctx, schoolID)
 }
+
+// ListStudentsByCourse fetches students enrolled in a specific course, sorted by rating.
+func (r *StudentRepository) ListStudentsByCourse(ctx context.Context, courseID string, limit, offset int, search string) ([]domain.User, error) {
+	query := `
+		SELECT DISTINCT u.id, u.email, u.name, u.role, u.rating_avg, u.rating_count, u.created_at, u.updated_at
+		FROM users u
+		JOIN enrollments e ON u.id = e.student_user_id
+		WHERE e.course_id = ? AND u.role = 'student' AND e.status = 'active'
+	`
+	args := []interface{}{courseID}
+
+	if search != "" {
+		query += ` AND u.name LIKE ?`
+		args = append(args, "%"+search+"%")
+	}
+
+	query += ` ORDER BY u.rating_avg DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var students []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.RatingAvg, &u.RatingCount, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		students = append(students, u)
+	}
+	return students, nil
+}
+
+// ListStudentsByConnection fetches students who share at least one course with the given user.
+func (r *StudentRepository) ListStudentsByConnection(ctx context.Context, userID string, limit, offset int, search string) ([]domain.User, error) {
+	query := `
+		SELECT DISTINCT u.id, u.email, u.name, u.role, u.rating_avg, u.rating_count, u.created_at, u.updated_at
+		FROM users u
+		JOIN enrollments e2 ON u.id = e2.student_user_id
+		WHERE e2.course_id IN (
+			SELECT e1.course_id FROM enrollments e1 WHERE e1.student_user_id = ? AND e1.status = 'active'
+		)
+		AND u.id != ?
+		AND u.role = 'student'
+		AND e2.status = 'active'
+	`
+	args := []interface{}{userID, userID}
+
+	if search != "" {
+		query += ` AND u.name LIKE ?`
+		args = append(args, "%"+search+"%")
+	}
+
+	query += ` ORDER BY u.rating_avg DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var students []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.RatingAvg, &u.RatingCount, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		students = append(students, u)
+	}
+	return students, nil
+}
+
+// SearchStudentSuggestions returns lightweight autocomplete results (top 8 matches).
+func (r *StudentRepository) SearchStudentSuggestions(ctx context.Context, query string) ([]domain.User, error) {
+	sqlQuery := `
+		SELECT id, email, name, role, rating_avg, rating_count, created_at, updated_at
+		FROM users
+		WHERE role = 'student' AND name LIKE ?
+		ORDER BY rating_avg DESC
+		LIMIT 8
+	`
+	rows, err := r.DB.QueryContext(ctx, sqlQuery, "%"+query+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var students []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.RatingAvg, &u.RatingCount, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		students = append(students, u)
+	}
+	return students, nil
+}
