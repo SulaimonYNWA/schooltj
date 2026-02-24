@@ -1,54 +1,41 @@
-2026/01/26 16:08:47 Server starting on port 8080
-2026/01/26 16:38:25 Server starting on port 8080
-2026/02/01 13:23:43 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/01 13:24:08 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/01 13:24:42 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/01 13:27:30 Server starting on port 8080
-2026/02/01 14:50:14 Server starting on port 8080
-2026/02/01 15:23:08 Server starting on port 8080
-2026/02/01 15:33:33 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/01 15:34:06 Server starting on port 8080
-2026/02/01 15:37:24 Server starting on port 8080
-2026/02/01 15:43:38 Server starting on port 8080
-2026/02/01 15:50:46 Server starting on port 8080
-2026/02/01 20:13:18 Server starting on port 8080
-2026/02/01 20:27:49 Server starting on port 8080
-2026/02/01 20:29:03 Server starting on port 8080
-2026/02/01 20:34:56 Server starting on port 8080
-2026/02/01 20:41:10 Server starting on port 8080
-2026/02/01 23:06:51 Server starting on port 8080
-2026/02/01 23:27:39 Server starting on port 8080
-2026/02/01 23:30:03 Server starting on port 8080
-2026/02/01 23:36:26 Server starting on port 8080
-2026/02/01 23:39:45 Server starting on port 8080
-2026/02/01 23:40:56 Server starting on port 8080
-2026/02/01 23:44:31 Server starting on port 8080
-2026/02/01 23:46:26 Server starting on port 8080
-2026/02/02 00:02:46 Server starting on port 8080
-2026/02/02 00:06:15 Server starting on port 8080
-2026/02/02 00:06:21 Server starting on port 8080
-2026/02/02 00:11:16 Server starting on port 8080
-2026/02/02 19:16:09 Could not connect to database:failed to ping db: dial tcp 127.0.0.1:3307: connect: connection refused
-2026/02/02 19:16:43 Server starting on port 8080
-2026/02/02 19:30:37 Server starting on port 8080
-2026/02/02 19:32:49 Server starting on port 8080
-2026/02/02 19:50:27 Server starting on port 8080
-2026/02/02 20:19:32 Server starting on port 8080
-2026/02/16 19:05:38 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/16 19:06:08 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/16 19:06:15 Server starting on port 8080
-2026/02/16 22:01:43 Server starting on port 8080
-2026/02/16 22:01:43 listen tcp :8080: bind: address already in use
-2026/02/16 22:05:12 Server starting on port 8080
-2026/02/16 22:05:12 listen tcp :8080: bind: address already in use
-2026/02/16 22:05:20 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/16 22:24:16 Server starting on port 8080
-2026/02/16 22:24:16 listen tcp :8080: bind: address already in use
-2026/02/16 22:25:19 Server starting on port 8080
-2026/02/16 22:25:19 listen tcp :8080: bind: address already in use
-2026/02/16 22:26:01 Server starting on port 8081
-2026/02/21 16:29:48 Server starting on port 8080
-2026/02/21 16:29:48 listen tcp :8080: bind: address already in use
-2026/02/21 16:33:36 Could not connect to database:failed to ping db: dial tcp [::1]:3307: connect: connection refused
-2026/02/21 16:35:44 Server starting on port 8080
-2026/02/21 17:00:49 Server starting on port 8080
+go run cmd/api/main.go
+2026/02/22 23:37:49 Server starting on port 8080
+2026/02/22 23:37:59 Login error: Error 1054 (42S22): Unknown column 'avatar_url' in 'field list'
+2026/02/22 23:37:59 "POST http://localhost:8080/login HTTP/1.1" from [::1]:57093 - 500 22B in 3.732125ms
+2026/02/22 23:38:30 "POST http://localhost:8080/login HTTP/1.1" from [::1]:57259 - 401 20B in 2.255583ms
+2026/02/22 23:38:38 "POST http://localhost:8080/login HTTP/1.1" from [::1]:57300 - 401 20B in 2.154958ms
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/login HTTP/1.1" from [::1]:58215 - 200 0B in 70.166µs
+2026/02/22 23:41:31 "POST http://localhost:8080/login HTTP/1.1" from [::1]:58215 - 200 204B in 96.21575ms
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/me HTTP/1.1" from [::1]:58215 - 200 0B in 15.375µs
+2026/02/22 23:41:31 "GET http://localhost:8080/me HTTP/1.1" from [::1]:58215 - 200 212B in 7.457834ms
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/notifications/unread-count HTTP/1.1" from [::1]:58215 - 200 0B in 7.625µs
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/my-attendance/summary HTTP/1.1" from [::1]:58217 - 200 0B in 4.334µs
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/messages/unread-count HTTP/1.1" from [::1]:58216 - 200 0B in 5.167µs
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/announcements HTTP/1.1" from [::1]:58218 - 200 0B in 2.875µs
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/assignments HTTP/1.1" from [::1]:58220 - 200 0B in 3.459µs
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/notifications HTTP/1.1" from [::1]:58219 - 200 0B in 5.208µs
+2026/02/22 23:41:31 "OPTIONS http://localhost:8080/api/my-enrollments HTTP/1.1" from [::1]:58215 - 200 0B in 3µs
+2026/02/22 23:41:31 "GET http://localhost:8080/api/assignments HTTP/1.1" from [::1]:58219 - 404 19B in 8.083µs
+2026/02/22 23:41:31 "GET http://localhost:8080/api/notifications/unread-count HTTP/1.1" from [::1]:58216 - 200 12B in 50.792792ms
+2026/02/22 23:41:31 "GET http://localhost:8080/api/notifications HTTP/1.1" from [::1]:58218 - 200 439B in 48.42425ms
+2026/02/22 23:41:31 "GET http://localhost:8080/api/messages/unread-count HTTP/1.1" from [::1]:58220 - 200 12B in 54.409209ms
+2026/02/22 23:41:31 "GET http://localhost:8080/api/announcements HTTP/1.1" from [::1]:58215 - 200 1436B in 53.554959ms
+2026/02/22 23:41:31 "GET http://localhost:8080/api/my-attendance/summary HTTP/1.1" from [::1]:58217 - 200 306B in 55.72475ms
+2026/02/22 23:41:31 "GET http://localhost:8080/api/my-enrollments HTTP/1.1" from [::1]:58219 - 200 2643B in 56.428167ms
+2026/02/22 23:41:32 "GET http://localhost:8080/api/assignments HTTP/1.1" from [::1]:58219 - 404 19B in 88.333µs
+2026/02/22 23:41:34 "GET http://localhost:8080/api/assignments HTTP/1.1" from [::1]:58219 - 404 19B in 19.875µs
+2026/02/22 23:41:46 "GET http://localhost:8080/api/messages/unread-count HTTP/1.1" from [::1]:58219 - 200 12B in 7.451875ms
+2026/02/22 23:41:48 "OPTIONS http://localhost:8080/me/avatar HTTP/1.1" from [::1]:58219 - 200 0B in 48.042µs
+2026/02/22 23:41:48 "PUT http://localhost:8080/me/avatar HTTP/1.1" from [::1]:58219 - 200 0B in 10.642916ms
+2026/02/22 23:41:58 "OPTIONS http://localhost:8080/me HTTP/1.1" from [::1]:58219 - 200 0B in 38.875µs
+2026/02/22 23:41:58 "PUT http://localhost:8080/me HTTP/1.1" from [::1]:58219 - 200 383B in 11.662459ms
+2026/02/22 23:42:00 "GET http://localhost:8080/api/messages/unread-count HTTP/1.1" from [::1]:58217 - 200 12B in 3.707417ms
+2026/02/22 23:42:00 "GET http://localhost:8080/api/notifications/unread-count HTTP/1.1" from [::1]:58219 - 200 12B in 4.139542ms
+2026/02/22 23:42:00 "GET http://localhost:8080/me HTTP/1.1" from [::1]:58215 - 200 383B in 5.13575ms
+2026/02/22 23:42:00 "GET http://localhost:8080/me HTTP/1.1" from [::1]:58219 - 200 383B in 1.217375ms
+2026/02/22 23:42:15 "GET http://localhost:8080/api/messages/unread-count HTTP/1.1" from [::1]:58219 - 200 12B in 9.257666ms
+2026/02/22 23:42:30 "GET http://localhost:8080/api/notifications/unread-count HTTP/1.1" from [::1]:58219 - 200 12B in 3.576167ms
+2026/02/22 23:42:30 "GET http://localhost:8080/api/messages/unread-count HTTP/1.1" from [::1]:58219 - 200 12B in 2.853042ms
+signal: killed
+make: *** [run-api] Error 1
+2026/02/22 23:46:55 Server starting on port 8080
