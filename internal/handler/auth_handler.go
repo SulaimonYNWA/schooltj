@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/schooltj/internal/domain"
 	"github.com/schooltj/internal/service"
 )
@@ -195,4 +196,42 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// GetPublicProfile handles GET /api/users/{id}
+func (h *AuthHandler) GetPublicProfile(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		http.Error(w, "user id is required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.service.GetUserByID(r.Context(), userID)
+	if err != nil {
+		log.Printf("[AuthHandler.GetPublicProfile] error finding user %s: %v", userID, err)
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	// Strip sensitive fields
+	type publicProfile struct {
+		ID        string      `json:"id"`
+		Name      string      `json:"name"`
+		Email     string      `json:"email"`
+		Role      domain.Role `json:"role"`
+		AvatarURL *string     `json:"avatar_url,omitempty"`
+		CreatedAt string      `json:"created_at"`
+	}
+
+	profile := publicProfile{
+		ID:        user.ID,
+		Name:      user.Name,
+		Email:     user.Email,
+		Role:      user.Role,
+		AvatarURL: user.AvatarURL,
+		CreatedAt: user.CreatedAt.Format("2006-01-02"), // Example: just returning the date portion if preferred, or use time.Time
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(profile)
 }

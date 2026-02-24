@@ -219,3 +219,35 @@ func (h *CourseHandler) ApproveEnrollment(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "enrollment updated"}`))
 }
+
+type updateCoverImageRequest struct {
+	CoverImageURL string `json:"cover_image_url"`
+}
+
+func (h *CourseHandler) UpdateCoverImage(w http.ResponseWriter, r *http.Request) {
+	courseID := chi.URLParam(r, "id")
+	if courseID == "" {
+		http.Error(w, "invalid course", http.StatusBadRequest)
+		return
+	}
+
+	var req updateCoverImageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var url *string
+	if req.CoverImageURL != "" {
+		url = &req.CoverImageURL
+	}
+
+	if err := h.service.UpdateCoverImage(r.Context(), courseID, url); err != nil {
+		log.Printf("UpdateCoverImage error: %v", err)
+		http.Error(w, "failed to update cover image", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "cover image updated"}`))
+}

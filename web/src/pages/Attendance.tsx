@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
 import { Calendar, CheckCircle, XCircle, Clock, AlertTriangle, Users, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Course {
     id: string;
@@ -206,13 +207,13 @@ function TeacherAttendanceView() {
                                 const status = getStudentStatus(student.enrollment_id);
                                 return (
                                     <div key={student.enrollment_id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                                        <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                                        <Link to={`/users/${student.student_user_id}`} className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 hover:bg-indigo-200 transition-colors text-decoration-none mr-2">
                                             <span className="text-sm font-bold text-indigo-600">
                                                 {student.student_name.charAt(0).toUpperCase()}
                                             </span>
-                                        </div>
+                                        </Link>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-gray-900 truncate">{student.student_name}</p>
+                                            <Link to={`/users/${student.student_user_id}`} className="font-medium text-gray-900 truncate hover:text-indigo-600 hover:underline">{student.student_name}</Link>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {Object.entries(statusConfig).map(([key, config]) => (

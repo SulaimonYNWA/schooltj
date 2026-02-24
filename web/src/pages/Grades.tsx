@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
 import { Award, BookOpen, Plus, Star, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 
 interface Grade {
@@ -199,7 +200,11 @@ export default function Grades() {
                                 <tbody>
                                     {courseGrades.map(g => (
                                         <tr key={g.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                            <td style={{ padding: '12px 16px', fontSize: '14px', fontWeight: 500 }}>{g.student_name}</td>
+                                            <td style={{ padding: '12px 16px', fontSize: '14px', fontWeight: 500 }}>
+                                                <Link to={`/users/${g.student_user_id}`} className="text-indigo-600 hover:text-indigo-800 hover:underline text-decoration-none">
+                                                    {g.student_name}
+                                                </Link>
+                                            </td>
                                             <td style={{ padding: '12px 16px', fontSize: '14px' }}>{g.title}</td>
                                             <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, color: (g.score ?? 0) >= 70 ? '#059669' : '#dc2626' }}>{g.score !== null ? `${g.score}%` : '—'}</td>
                                             <td style={{ padding: '12px 16px', textAlign: 'center' }}>

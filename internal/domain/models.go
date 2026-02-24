@@ -71,18 +71,20 @@ type Schedule struct {
 }
 
 type Course struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	Schedule     *Schedule `json:"schedule"` // Pointer to handle NULL
-	SchoolID     *string   `json:"school_id,omitempty"`
-	SchoolName   string    `json:"school_name,omitempty"`
-	TeacherID    *string   `json:"teacher_id,omitempty"`
-	TeacherName  string    `json:"teacher_name,omitempty"`
-	TeacherEmail string    `json:"teacher_email,omitempty"`
-	Price        float64   `json:"price"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID            string    `json:"id"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description,omitempty"`
+	Schedule      *Schedule `json:"schedule,omitempty"`
+	SchoolID      *string   `json:"school_id,omitempty"`
+	SchoolName    string    `json:"school_name,omitempty"`
+	TeacherID     *string   `json:"teacher_id,omitempty"`
+	TeacherName   string    `json:"teacher_name,omitempty"`
+	TeacherEmail  string    `json:"teacher_email,omitempty"`
+	TeacherAvatar *string   `json:"teacher_avatar,omitempty"` // populated on read
+	CoverImageURL *string   `json:"cover_image_url,omitempty"`
+	Price         float64   `json:"price"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type Enrollment struct {
@@ -118,8 +120,9 @@ type Attendance struct {
 	CourseID      string    `json:"course_id"`
 	StudentUserID string    `json:"student_user_id"`
 	StudentName   string    `json:"student_name,omitempty"`
-	Date          string    `json:"date"` // YYYY-MM-DD
-	Status        string    `json:"status"`
+	StudentAvatar *string   `json:"student_avatar,omitempty"` // populated on read
+	Date          string    `json:"date"`                     // YYYY-MM-DD
+	Status        string    `json:"status"`                   // present, absent, late, excused
 	Note          string    `json:"note,omitempty"`
 	MarkedBy      string    `json:"marked_by"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -147,10 +150,11 @@ type Payment struct {
 	ID            string    `json:"id"`
 	StudentUserID string    `json:"student_user_id"`
 	StudentName   string    `json:"student_name,omitempty"`
+	StudentAvatar *string   `json:"student_avatar,omitempty"` // populated on read
 	CourseID      string    `json:"course_id"`
 	CourseTitle   string    `json:"course_title,omitempty"`
 	Amount        float64   `json:"amount"`
-	Method        string    `json:"method"`
+	Method        string    `json:"method"` // cash, card, transfer
 	Note          string    `json:"note,omitempty"`
 	RecordedBy    string    `json:"recorded_by"`
 	PaidAt        time.Time `json:"paid_at"`
@@ -158,30 +162,32 @@ type Payment struct {
 }
 
 type Announcement struct {
-	ID          string    `json:"id"`
-	CourseID    *string   `json:"course_id,omitempty"`
-	CourseTitle string    `json:"course_title,omitempty"`
-	AuthorID    string    `json:"author_id"`
-	AuthorName  string    `json:"author_name,omitempty"`
-	Title       string    `json:"title"`
-	Content     string    `json:"content"`
-	IsPinned    bool      `json:"is_pinned"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	CourseID     *string   `json:"course_id,omitempty"`
+	CourseTitle  string    `json:"course_title,omitempty"`
+	AuthorID     string    `json:"author_id"`
+	AuthorName   string    `json:"author_name,omitempty"`
+	AuthorAvatar *string   `json:"author_avatar,omitempty"` // populated on read
+	Title        string    `json:"title"`
+	Content      string    `json:"content"`
+	IsPinned     bool      `json:"is_pinned"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type Grade struct {
-	ID            string    `json:"id"`
-	StudentUserID string    `json:"student_user_id"`
-	StudentName   string    `json:"student_name,omitempty"`
-	CourseID      string    `json:"course_id"`
-	CourseTitle   string    `json:"course_title,omitempty"`
-	Title         string    `json:"title"`
-	Score         *float64  `json:"score"`
-	LetterGrade   *string   `json:"letter_grade"`
-	Comment       string    `json:"comment,omitempty"`
-	GradedBy      string    `json:"graded_by"`
-	GradedAt      time.Time `json:"graded_at"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            string     `json:"id"`
+	StudentUserID string     `json:"student_user_id"`
+	StudentName   string     `json:"student_name,omitempty"`
+	StudentAvatar *string    `json:"student_avatar,omitempty"` // populated on read
+	CourseID      string     `json:"course_id"`
+	CourseTitle   string     `json:"course_title,omitempty"`
+	Title         string     `json:"title"`
+	Score         float64    `json:"score"`
+	LetterGrade   string     `json:"letter_grade,omitempty"`
+	Comment       string     `json:"comment,omitempty"`
+	GradedBy      string     `json:"graded_by"`
+	GradedAt      *time.Time `json:"graded_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 type Notification struct {
@@ -198,10 +204,10 @@ type Notification struct {
 type Assignment struct {
 	ID          string    `json:"id"`
 	CourseID    string    `json:"course_id"`
-	CourseTitle string    `json:"course_title,omitempty"`
+	CourseTitle string    `json:"course_title"` // populated on read
 	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	DueDate     *string   `json:"due_date,omitempty"`
+	Description string    `json:"description"`
+	DueDate     time.Time `json:"due_date"`
 	MaxScore    float64   `json:"max_score"`
 	CreatedBy   string    `json:"created_by"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -212,21 +218,24 @@ type Submission struct {
 	ID            string     `json:"id"`
 	AssignmentID  string     `json:"assignment_id"`
 	StudentUserID string     `json:"student_user_id"`
-	StudentName   string     `json:"student_name,omitempty"`
-	Content       string     `json:"content,omitempty"`
-	Link          string     `json:"link,omitempty"`
-	Score         *float64   `json:"score"`
-	Feedback      string     `json:"feedback,omitempty"`
+	StudentName   string     `json:"student_name"`             // populated on read
+	StudentAvatar *string    `json:"student_avatar,omitempty"` // populated on read
+	Content       string     `json:"content"`
+	Link          string     `json:"link"`
+	Score         *float64   `json:"score,omitempty"`
+	Feedback      string     `json:"feedback"`
 	SubmittedAt   time.Time  `json:"submitted_at"`
-	GradedAt      *time.Time `json:"graded_at"`
+	GradedAt      *time.Time `json:"graded_at,omitempty"`
 }
 
 type Message struct {
 	ID         string    `json:"id"`
 	FromUserID string    `json:"from_user_id"`
-	FromName   string    `json:"from_name,omitempty"`
+	FromName   string    `json:"from_name"` // populated on read
 	ToUserID   string    `json:"to_user_id"`
-	ToName     string    `json:"to_name,omitempty"`
+	ToName     string    `json:"to_name"`               // populated on read
+	FromAvatar *string   `json:"from_avatar,omitempty"` // populated on read
+	ToAvatar   *string   `json:"to_avatar,omitempty"`   // populated on read
 	Content    string    `json:"content"`
 	IsRead     bool      `json:"is_read"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -236,6 +245,7 @@ type Conversation struct {
 	UserID      string    `json:"user_id"`
 	UserName    string    `json:"user_name"`
 	UserEmail   string    `json:"user_email"`
+	AvatarURL   *string   `json:"avatar_url,omitempty"`
 	LastMessage string    `json:"last_message"`
 	LastTime    time.Time `json:"last_time"`
 	UnreadCount int       `json:"unread_count"`

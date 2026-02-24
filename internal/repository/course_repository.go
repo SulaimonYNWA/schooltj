@@ -32,22 +32,23 @@ func (r *CourseRepository) CreateCourse(ctx context.Context, course *domain.Cour
 		}
 	}
 
-	query := `INSERT INTO courses (id, title, description, schedule, school_id, teacher_id, price, created_at, updated_at) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	_, err := r.DB.ExecContext(ctx, query, course.ID, course.Title, course.Description, scheduleJSON, course.SchoolID, course.TeacherID, course.Price)
+	query := `INSERT INTO courses (id, title, description, schedule, school_id, teacher_id, price, cover_image_url, created_at, updated_at) 
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+	_, err := r.DB.ExecContext(ctx, query, course.ID, course.Title, course.Description, scheduleJSON, course.SchoolID, course.TeacherID, course.Price, course.CoverImageURL)
 	return err
 }
 
 func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domain.Course, error) {
-	query := `SELECT id, title, description, schedule, school_id, teacher_id, price, created_at, updated_at FROM courses WHERE id = ?`
+	query := `SELECT id, title, description, schedule, school_id, teacher_id, price, cover_image_url, created_at, updated_at FROM courses WHERE id = ?`
 	row := r.DB.QueryRowContext(ctx, query, id)
 
 	var course domain.Course
 	var schoolID sql.NullString
 	var teacherID sql.NullString
 	var scheduleRaw sql.NullString
+	var coverImageURL sql.NullString
 
-	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleRaw, &schoolID, &teacherID, &course.Price, &course.CreatedAt, &course.UpdatedAt)
+	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleRaw, &schoolID, &teacherID, &course.Price, &coverImageURL, &course.CreatedAt, &course.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCourseNotFound
@@ -60,6 +61,9 @@ func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domai
 	}
 	if teacherID.Valid {
 		course.TeacherID = &teacherID.String
+	}
+	if coverImageURL.Valid {
+		course.CoverImageURL = &coverImageURL.String
 	}
 
 	if scheduleRaw.Valid && scheduleRaw.String != "" {
@@ -91,9 +95,10 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 	}
 
 	query := `
-		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.created_at, c.updated_at,
+		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
+			   u.avatar_url,
 		       COALESCE(s.name, '') as school_name
 		FROM courses c
 		LEFT JOIN users u ON c.teacher_id = u.id
@@ -118,10 +123,12 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		var scheduleJSON []byte
 		var teacherName sql.NullString
 		var teacherEmail sql.NullString
+		var avatarURL sql.NullString
+		var coverImageURL sql.NullString
 		var schoolName sql.NullString
 
 		if err := rows.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
-			&course.Price, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &schoolName); err != nil {
+			&course.Price, &coverImageURL, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName); err != nil {
 			return nil, err
 		}
 
@@ -140,6 +147,12 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 			course.TeacherID = &teacherID.String
 			course.TeacherName = teacherName.String
 			course.TeacherEmail = teacherEmail.String
+			if avatarURL.Valid {
+				course.TeacherAvatar = &avatarURL.String
+			}
+		}
+		if coverImageURL.Valid {
+			course.CoverImageURL = &coverImageURL.String
 		}
 
 		courses = append(courses, &course)
@@ -240,9 +253,10 @@ type EnrollmentWithCourse struct {
 func (r *CourseRepository) GetStudentEnrollmentsWithCourse(ctx context.Context, studentID string) ([]EnrollmentWithCourse, error) {
 	query := `
 		SELECT e.id, e.student_user_id, e.course_id, e.enrolled_at, e.status,
-		       c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.created_at, c.updated_at,
+		       c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
+			   u.avatar_url,
 		       COALESCE(s.name, '') as school_name
 		FROM enrollments e
 		JOIN courses c ON e.course_id = c.id
@@ -265,13 +279,15 @@ func (r *CourseRepository) GetStudentEnrollmentsWithCourse(ctx context.Context, 
 		var teacherID sql.NullString
 		var teacherName sql.NullString
 		var teacherEmail sql.NullString
+		var avatarURL sql.NullString
+		var coverImageURL sql.NullString
 		var schoolName sql.NullString
 
 		err := rows.Scan(
 			&ec.Enrollment.ID, &ec.Enrollment.StudentUserID, &ec.Enrollment.CourseID, &ec.Enrollment.EnrolledAt, &ec.Enrollment.Status,
 			&ec.Course.ID, &ec.Course.Title, &ec.Course.Description, &scheduleJSON, &schoolID, &teacherID,
-			&ec.Course.Price, &ec.Course.CreatedAt, &ec.Course.UpdatedAt,
-			&teacherName, &teacherEmail, &schoolName,
+			&ec.Course.Price, &coverImageURL, &ec.Course.CreatedAt, &ec.Course.UpdatedAt,
+			&teacherName, &teacherEmail, &avatarURL, &schoolName,
 		)
 		if err != nil {
 			return nil, err
@@ -292,8 +308,20 @@ func (r *CourseRepository) GetStudentEnrollmentsWithCourse(ctx context.Context, 
 			ec.Course.TeacherID = &teacherID.String
 			ec.Course.TeacherName = teacherName.String
 			ec.Course.TeacherEmail = teacherEmail.String
+			if avatarURL.Valid {
+				ec.Course.TeacherAvatar = &avatarURL.String
+			}
+		}
+		if coverImageURL.Valid {
+			ec.Course.CoverImageURL = &coverImageURL.String
 		}
 		result = append(result, ec)
 	}
 	return result, nil
+}
+
+func (r *CourseRepository) UpdateCoverImage(ctx context.Context, courseID string, url *string) error {
+	query := `UPDATE courses SET cover_image_url = ?, updated_at = NOW() WHERE id = ?`
+	_, err := r.DB.ExecContext(ctx, query, url, courseID)
+	return err
 }

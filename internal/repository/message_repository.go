@@ -24,7 +24,8 @@ func (r *MessageRepository) Send(ctx context.Context, m *domain.Message) error {
 }
 
 func (r *MessageRepository) GetConversation(ctx context.Context, userID1, userID2 string) ([]domain.Message, error) {
-	query := `SELECT m.id, m.from_user_id, COALESCE(f.name, f.email) as from_name, m.to_user_id, COALESCE(t.name, t.email) as to_name, m.content, m.is_read, m.created_at
+	query := `SELECT m.id, m.from_user_id, COALESCE(f.name, f.email) as from_name, f.avatar_url as from_avatar,
+		m.to_user_id, COALESCE(t.name, t.email) as to_name, t.avatar_url as to_avatar, m.content, m.is_read, m.created_at
 		FROM messages m
 		JOIN users f ON m.from_user_id = f.id
 		JOIN users t ON m.to_user_id = t.id
@@ -39,8 +40,15 @@ func (r *MessageRepository) GetConversation(ctx context.Context, userID1, userID
 	var messages []domain.Message
 	for rows.Next() {
 		var m domain.Message
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.ToUserID, &m.ToName, &m.Content, &m.IsRead, &m.CreatedAt); err != nil {
+		var fromAvatar, toAvatar sql.NullString
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &fromAvatar, &m.ToUserID, &m.ToName, &toAvatar, &m.Content, &m.IsRead, &m.CreatedAt); err != nil {
 			return nil, err
+		}
+		if fromAvatar.Valid {
+			m.FromAvatar = &fromAvatar.String
+		}
+		if toAvatar.Valid {
+			m.ToAvatar = &toAvatar.String
 		}
 		messages = append(messages, m)
 	}
@@ -52,6 +60,7 @@ func (r *MessageRepository) ListConversations(ctx context.Context, userID string
 		sub.other_id,
 		COALESCE(u.name, u.email) as user_name,
 		u.email as user_email,
+		u.avatar_url,
 		sub.content as last_message,
 		sub.created_at as last_time,
 		(SELECT COUNT(*) FROM messages m2 WHERE m2.from_user_id = sub.other_id AND m2.to_user_id = ? AND m2.is_read = FALSE) as unread_count
@@ -78,8 +87,12 @@ func (r *MessageRepository) ListConversations(ctx context.Context, userID string
 	var conversations []domain.Conversation
 	for rows.Next() {
 		var c domain.Conversation
-		if err := rows.Scan(&c.UserID, &c.UserName, &c.UserEmail, &c.LastMessage, &c.LastTime, &c.UnreadCount); err != nil {
+		var avatarURL sql.NullString
+		if err := rows.Scan(&c.UserID, &c.UserName, &c.UserEmail, &avatarURL, &c.LastMessage, &c.LastTime, &c.UnreadCount); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			c.AvatarURL = &avatarURL.String
 		}
 		conversations = append(conversations, c)
 	}

@@ -2,7 +2,11 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
-import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image } from 'lucide-react';
+import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image, Camera } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from '../lib/firebase';
+import imageCompression from 'browser-image-compression';
 
 interface Schedule {
     days: string[];
@@ -18,8 +22,11 @@ interface Course {
     description: string;
     schedule?: Schedule;
     price: number;
+    teacher_id?: string;
     teacher_name?: string;
     teacher_email?: string;
+    teacher_avatar?: string;
+    cover_image_url?: string;
     school_name?: string;
     created_at: string;
 }
@@ -197,10 +204,14 @@ export default function CourseList() {
                                 onClick={() => setViewedCourse(course)}
                                 className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-indigo-100 cursor-pointer"
                             >
-                                <div className="h-48 bg-gray-200 group-hover:scale-105 transition-transform duration-300 relative">
-                                    <div className="absolute inset-0 flex items-center justify-center bg-indigo-50 text-indigo-200">
-                                        <BookOpen className="h-12 w-12" />
-                                    </div>
+                                <div className="h-48 bg-gray-200 group-hover:scale-105 transition-transform duration-300 relative overflow-hidden">
+                                    {course.cover_image_url ? (
+                                        <img src={course.cover_image_url} alt={course.title} className="absolute inset-0 w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-indigo-50 text-indigo-200">
+                                            <BookOpen className="h-12 w-12" />
+                                        </div>
+                                    )}
                                     {enrollment && enrollment.status && (
                                         <div className="absolute top-2 right-2">
                                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
@@ -228,9 +239,17 @@ export default function CourseList() {
                                     )}
 
                                     <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-500 border-t border-gray-50 pt-4">
-                                        <div className="flex items-center">
-                                            <User className="mr-1.5 h-4 w-4 text-amber-500" />
-                                            {course.teacher_name || 'Unknown Teacher'}
+                                        <div className="flex items-center gap-1.5">
+                                            <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="hover:opacity-80 transition-opacity">
+                                                {course.teacher_avatar ? (
+                                                    <img src={course.teacher_avatar} alt="" className="h-5 w-5 rounded-full object-cover bg-gray-100 block" />
+                                                ) : (
+                                                    <User className="h-4 w-4 text-amber-500 block" />
+                                                )}
+                                            </Link>
+                                            <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="hover:text-indigo-600 hover:underline">
+                                                {course.teacher_name || 'Unknown Teacher'}
+                                            </Link>
                                         </div>
                                         {course.school_name && (
                                             <div className="flex items-center">
@@ -374,8 +393,52 @@ function CourseDetailsModal({
     });
 
     // ── Materials state ──
+    const coverInputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
+    const [uploadingCover, setUploadingCover] = useState(false);
+
+    const updateCoverMutation = useMutation({
+        mutationFn: async (url: string) => {
+            return api.put(`/api/courses/${course.id}/cover-image`, { cover_image_url: url });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
+        },
+    });
+
+    const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingCover(true);
+        try {
+            const options = {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1200,
+                useWebWorker: true,
+                fileType: 'image/webp' as const,
+            };
+            const compressedFile = await imageCompression(file, options);
+            const filename = `course-covers/${course.id}-${Date.now()}.webp`;
+            const storageRef = ref(storage, filename);
+            const uploadTask = uploadBytesResumable(storageRef, compressedFile);
+
+            uploadTask.on('state_changed', null, (error) => {
+                console.error('Cover upload error:', error);
+                setUploadingCover(false);
+            }, async () => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                updateCoverMutation.mutate(downloadURL);
+                setUploadingCover(false);
+            });
+        } catch (error) {
+            console.error('Cover upload error:', error);
+            setUploadingCover(false);
+        } finally {
+            if (coverInputRef.current) coverInputRef.current.value = '';
+        }
+    };
 
     const { data: materials, isLoading: materialsLoading } = useQuery<CourseMaterial[]>({
         queryKey: ['materials', course.id],
@@ -445,6 +508,35 @@ function CourseDetailsModal({
                 <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
                     {/* Header */}
                     <div className="bg-white px-6 pt-5 pb-0">
+                        {/* Cover Image */}
+                        <div className="relative -mx-6 -mt-5 h-40 bg-gradient-to-r from-indigo-100 to-purple-100 overflow-hidden mb-4">
+                            {course.cover_image_url ? (
+                                <img src={course.cover_image_url} alt={course.title} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-indigo-200">
+                                    <BookOpen className="h-16 w-16" />
+                                </div>
+                            )}
+                            {isTeacher && (
+                                <>
+                                    <input
+                                        ref={coverInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleCoverUpload}
+                                    />
+                                    <button
+                                        onClick={() => coverInputRef.current?.click()}
+                                        disabled={uploadingCover}
+                                        className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-gray-700 hover:bg-white rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    >
+                                        <Camera className="h-3.5 w-3.5" />
+                                        {uploadingCover ? 'Uploading...' : 'Change Cover'}
+                                    </button>
+                                </>
+                            )}
+                        </div>
                         <div className="flex justify-between items-start">
                             <div className="flex items-center gap-3">
                                 <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100">
@@ -505,9 +597,17 @@ function CourseDetailsModal({
                                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Details</h4>
                                         <div className="space-y-3">
                                             <div className="flex items-center text-sm text-gray-700">
-                                                <User className="h-4 w-4 mr-2 text-amber-500" />
+                                                <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="mr-2 hover:opacity-80 transition-opacity flex">
+                                                    {course.teacher_avatar ? (
+                                                        <img src={course.teacher_avatar} alt="" className="h-4 w-4 rounded-full object-cover bg-gray-100 block" />
+                                                    ) : (
+                                                        <User className="h-4 w-4 text-amber-500 block" />
+                                                    )}
+                                                </Link>
                                                 <span className="font-medium">Teacher:</span>
-                                                <span className="ml-1">{course.teacher_name || 'Unknown'}</span>
+                                                <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="ml-1 hover:text-indigo-600 hover:underline">
+                                                    {course.teacher_name || 'Unknown'}
+                                                </Link>
                                             </div>
                                             <div className="flex items-center text-sm text-gray-700">
                                                 <School className="h-4 w-4 mr-2 text-blue-500" />

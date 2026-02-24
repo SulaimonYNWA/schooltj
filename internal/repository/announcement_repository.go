@@ -33,7 +33,7 @@ func (r *AnnouncementRepository) Create(ctx context.Context, a *domain.Announcem
 func (r *AnnouncementRepository) ListByCourse(ctx context.Context, courseID string) ([]domain.Announcement, error) {
 	query := `
 		SELECT a.id, a.course_id, COALESCE(c.title, 'General') as course_title,
-		       a.author_id, COALESCE(u.name, u.email) as author_name,
+		       a.author_id, COALESCE(u.name, u.email) as author_name, u.avatar_url as author_avatar,
 		       a.title, a.content, a.is_pinned, a.created_at
 		FROM announcements a
 		LEFT JOIN courses c ON a.course_id = c.id
@@ -48,7 +48,7 @@ func (r *AnnouncementRepository) ListByCourse(ctx context.Context, courseID stri
 func (r *AnnouncementRepository) ListForStudent(ctx context.Context, studentUserID string) ([]domain.Announcement, error) {
 	query := `
 		SELECT a.id, a.course_id, COALESCE(c.title, 'General') as course_title,
-		       a.author_id, COALESCE(u.name, u.email) as author_name,
+		       a.author_id, COALESCE(u.name, u.email) as author_name, u.avatar_url as author_avatar,
 		       a.title, a.content, a.is_pinned, a.created_at
 		FROM announcements a
 		LEFT JOIN courses c ON a.course_id = c.id
@@ -68,7 +68,7 @@ func (r *AnnouncementRepository) ListForStudent(ctx context.Context, studentUser
 func (r *AnnouncementRepository) ListAll(ctx context.Context) ([]domain.Announcement, error) {
 	query := `
 		SELECT a.id, a.course_id, COALESCE(c.title, 'General') as course_title,
-		       a.author_id, COALESCE(u.name, u.email) as author_name,
+		       a.author_id, COALESCE(u.name, u.email) as author_name, u.avatar_url as author_avatar,
 		       a.title, a.content, a.is_pinned, a.created_at
 		FROM announcements a
 		LEFT JOIN courses c ON a.course_id = c.id
@@ -104,12 +104,16 @@ func (r *AnnouncementRepository) scan(ctx context.Context, query string, args ..
 	for rows.Next() {
 		var a domain.Announcement
 		var courseID sql.NullString
-		if err := rows.Scan(&a.ID, &courseID, &a.CourseTitle, &a.AuthorID, &a.AuthorName,
+		var avatarURL sql.NullString
+		if err := rows.Scan(&a.ID, &courseID, &a.CourseTitle, &a.AuthorID, &a.AuthorName, &avatarURL,
 			&a.Title, &a.Content, &a.IsPinned, &a.CreatedAt); err != nil {
 			return nil, err
 		}
 		if courseID.Valid {
 			a.CourseID = &courseID.String
+		}
+		if avatarURL.Valid {
+			a.AuthorAvatar = &avatarURL.String
 		}
 		announcements = append(announcements, a)
 	}

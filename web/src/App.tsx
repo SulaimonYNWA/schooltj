@@ -21,6 +21,7 @@ import Notifications from './pages/Notifications';
 import Homework from './pages/Homework';
 import Messages from './pages/Messages';
 import Reports from './pages/Reports';
+import UserProfile from './pages/UserProfile';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ function App() {
               <Route path="/messages" element={<Messages />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/users/:id" element={<UserProfile />} />
             </Route>
           </Routes>
         </AuthProvider>

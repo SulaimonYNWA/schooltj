@@ -24,7 +24,7 @@ func (r *GradeRepository) Create(ctx context.Context, g *domain.Grade) error {
 }
 
 func (r *GradeRepository) ListByCourse(ctx context.Context, courseID string) ([]domain.Grade, error) {
-	query := `SELECT g.id, g.student_user_id, COALESCE(u.name, u.email) as student_name, g.course_id, COALESCE(c.title, '') as course_title, g.title, g.score, g.letter_grade, COALESCE(g.comment, ''), g.graded_by, g.graded_at, g.created_at
+	query := `SELECT g.id, g.student_user_id, COALESCE(u.name, u.email) as student_name, u.avatar_url as student_avatar, g.course_id, COALESCE(c.title, '') as course_title, g.title, g.score, g.letter_grade, COALESCE(g.comment, ''), g.graded_by, g.graded_at, g.created_at
 		FROM grades g
 		JOIN users u ON g.student_user_id = u.id
 		JOIN courses c ON g.course_id = c.id
@@ -38,8 +38,12 @@ func (r *GradeRepository) ListByCourse(ctx context.Context, courseID string) ([]
 	var grades []domain.Grade
 	for rows.Next() {
 		var g domain.Grade
-		if err := rows.Scan(&g.ID, &g.StudentUserID, &g.StudentName, &g.CourseID, &g.CourseTitle, &g.Title, &g.Score, &g.LetterGrade, &g.Comment, &g.GradedBy, &g.GradedAt, &g.CreatedAt); err != nil {
+		var avatarURL sql.NullString
+		if err := rows.Scan(&g.ID, &g.StudentUserID, &g.StudentName, &avatarURL, &g.CourseID, &g.CourseTitle, &g.Title, &g.Score, &g.LetterGrade, &g.Comment, &g.GradedBy, &g.GradedAt, &g.CreatedAt); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			g.StudentAvatar = &avatarURL.String
 		}
 		grades = append(grades, g)
 	}

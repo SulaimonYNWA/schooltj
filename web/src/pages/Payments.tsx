@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
 import { DollarSign, Plus, CreditCard, Banknote, ArrowRightLeft, MoreHorizontal, Filter } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Course {
     id: string;
@@ -192,8 +193,8 @@ function AdminPaymentsView() {
                                         key={key}
                                         onClick={() => setFormData(prev => ({ ...prev, method: key }))}
                                         className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${formData.method === key
-                                                ? `${config.color} border-current ring-1 ring-current`
-                                                : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+                                            ? `${config.color} border-current ring-1 ring-current`
+                                            : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
                                             }`}
                                     >
                                         <config.icon className="h-3.5 w-3.5" />
@@ -281,7 +282,9 @@ function AdminPaymentsView() {
                                 const MIcon = mc.icon;
                                 return (
                                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-3.5 font-medium text-gray-900">{p.student_name}</td>
+                                        <td className="px-6 py-3.5 font-medium text-gray-900">
+                                            <Link to={`/users/${p.student_user_id}`} className="hover:text-emerald-600 hover:underline">{p.student_name}</Link>
+                                        </td>
                                         <td className="px-6 py-3.5 text-gray-600">{p.course_title}</td>
                                         <td className="px-6 py-3.5 text-right font-semibold text-emerald-600">
                                             ${p.amount.toFixed(2)}

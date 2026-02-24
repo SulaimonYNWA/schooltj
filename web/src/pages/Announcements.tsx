@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
 import { Megaphone, Plus, Pin, Trash2, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Course {
     id: string;
@@ -198,7 +199,7 @@ export default function Announcements() {
                                             <h3 className="font-bold text-gray-900">{a.title}</h3>
                                         </div>
                                         <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
-                                            <span>{a.author_name}</span>
+                                            <Link to={`/users/${a.author_id}`} className="hover:text-amber-600 hover:underline">{a.author_name}</Link>
                                             <span>•</span>
                                             <span>{timeAgo(a.created_at)}</span>
                                             {a.course_title && (

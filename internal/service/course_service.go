@@ -312,3 +312,7 @@ func (s *CourseService) ApproveOrRejectEnrollment(ctx context.Context, userID st
 
 	return s.courseRepo.UpdateEnrollmentStatus(ctx, enrollmentID, newStatus)
 }
+
+func (s *CourseService) UpdateCoverImage(ctx context.Context, courseID string, url *string) error {
+	return s.courseRepo.UpdateCoverImage(ctx, courseID, url)
+}

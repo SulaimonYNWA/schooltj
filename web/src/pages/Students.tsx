@@ -3,6 +3,7 @@ import { api } from '../lib/axios';
 import { Search, GraduationCap, Star, BookOpen, Users, Trophy, Medal, Award, ChevronDown, Loader2 } from 'lucide-react';
 import RatingDisplay from '../components/RatingDisplay';
 import RatingModal from '../components/RatingModal';
+import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/auth';
 
@@ -265,21 +266,23 @@ export default function Students() {
                                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
                             >
                                 <div className="h-8 w-8 rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                    {s.avatar_url ? (
-                                        <img
-                                            src={s.avatar_url}
-                                            alt={s.name || ''}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                (e.target as HTMLImageElement).parentElement?.querySelector('svg')?.classList.remove('hidden');
-                                            }}
-                                        />
-                                    ) : null}
-                                    <GraduationCap className={`h-4 w-4 text-indigo-600 ${s.avatar_url ? 'hidden' : ''}`} />
+                                    <Link to={`/users/${s.id}`} onClick={(e) => e.stopPropagation()} className="w-full h-full block">
+                                        {s.avatar_url ? (
+                                            <img
+                                                src={s.avatar_url}
+                                                alt={s.name || ''}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                    (e.target as HTMLImageElement).parentElement?.parentElement?.querySelector('svg')?.classList.remove('hidden');
+                                                }}
+                                            />
+                                        ) : null}
+                                        <GraduationCap className={`h-4 w-4 text-indigo-600 m-auto mt-2 ${s.avatar_url ? 'hidden' : ''}`} />
+                                    </Link>
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium text-gray-900 truncate">{s.name || s.email.split('@')[0]}</p>
+                                    <Link to={`/users/${s.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline hover:text-indigo-600 text-sm font-medium text-gray-900 truncate block">{s.name || s.email.split('@')[0]}</Link>
                                     <p className="text-xs text-gray-500 truncate">{s.email}</p>
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -325,7 +328,7 @@ export default function Students() {
                                 {/* Top section: rank + avatar + info */}
                                 <div className="flex items-center gap-4 mb-4">
                                     <div className="relative">
-                                        <div className={`h-14 w-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${index < 3 ? 'bg-gradient-to-br from-indigo-100 to-purple-100' : 'bg-indigo-50'}`}>
+                                        <Link to={`/users/${student.id}`} className={`h-14 w-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity ${index < 3 ? 'bg-gradient-to-br from-indigo-100 to-purple-100' : 'bg-indigo-50'} block text-decoration-none`}>
                                             {student.avatar_url ? (
                                                 <img
                                                     src={student.avatar_url}
@@ -333,19 +336,19 @@ export default function Students() {
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
                                                         (e.target as HTMLImageElement).style.display = 'none';
-                                                        (e.target as HTMLImageElement).parentElement?.querySelector('svg')?.classList.remove('hidden');
+                                                        (e.target as HTMLImageElement).parentElement?.parentElement?.querySelector('svg')?.classList.remove('hidden');
                                                     }}
                                                 />
                                             ) : null}
-                                            <GraduationCap className={`h-7 w-7 ${student.avatar_url ? 'hidden' : ''} ${index < 3 ? 'text-indigo-700' : 'text-indigo-500'}`} />
-                                        </div>
+                                            <GraduationCap className={`h-7 w-7 m-auto mt-3.5 ${student.avatar_url ? 'hidden' : ''} ${index < 3 ? 'text-indigo-700' : 'text-indigo-500'}`} />
+                                        </Link>
                                         <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100">
                                             {getRankBadge(index)}
                                         </div>
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h3 className="font-bold text-gray-900 truncate text-lg">
-                                            {student.name || student.email.split('@')[0]}
+                                            <Link to={`/users/${student.id}`} className="hover:text-indigo-600 hover:underline">{student.name || student.email.split('@')[0]}</Link>
                                         </h3>
                                         <p className="text-xs text-gray-500 truncate">{student.email}</p>
                                     </div>

@@ -8,7 +8,7 @@ import {
 import CourseInvitationModal from '../components/CourseInvitationModal';
 import RatingModal from '../components/RatingModal';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface EnrollmentWithCourse {
     enrollment: {
@@ -50,7 +50,9 @@ interface Announcement {
     id: string;
     title: string;
     content: string;
+    author_id: string;
     author_name: string;
+    author_avatar?: string;
     course_title: string;
     is_pinned: boolean;
     created_at: string;
@@ -276,13 +278,25 @@ function AdminDashboard({ user }: { user: any }) {
                     ) : (
                         <div className="divide-y divide-gray-50">
                             {announcements.slice(0, 5).map(a => (
-                                <div key={a.id} className="px-6 py-3.5 hover:bg-gray-50 transition-colors">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        {a.is_pinned && <span className="text-amber-500 text-xs">📌</span>}
-                                        <h4 className="text-sm font-medium text-gray-900">{a.title}</h4>
+                                <div key={a.id} className="px-6 py-3.5 hover:bg-gray-50 transition-colors flex gap-3">
+                                    <Link to={`/users/${a.author_id}`} className="h-8 w-8 shrink-0 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden border border-emerald-200 mt-0.5 hover:opacity-80 transition-opacity">
+                                        {a.author_avatar ? (
+                                            <img src={a.author_avatar} alt="" className="h-full w-full object-cover" />
+                                        ) : (
+                                            <Megaphone className="h-4 w-4 text-emerald-600" />
+                                        )}
+                                    </Link>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            {a.is_pinned && <span className="text-amber-500 text-xs">📌</span>}
+                                            <h4 className="text-sm font-medium text-gray-900">{a.title}</h4>
+                                        </div>
+                                        <p className="text-xs text-gray-500 line-clamp-1">{a.content}</p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            <Link to={`/users/${a.author_id}`} className="hover:text-indigo-600 hover:underline">{a.author_name}</Link>
+                                            {' '}· {timeAgo(a.created_at)}
+                                        </p>
                                     </div>
-                                    <p className="text-xs text-gray-500 line-clamp-1">{a.content}</p>
-                                    <p className="text-xs text-gray-400 mt-1">{a.author_name} · {timeAgo(a.created_at)}</p>
                                 </div>
                             ))}
                         </div>

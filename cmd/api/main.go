@@ -114,6 +114,7 @@ func main() {
 		r.Put("/me/avatar", authHandler.UpdateAvatar)
 		r.Delete("/me/avatar", authHandler.DeleteAvatar)
 		r.Get("/api/users/search", authHandler.SearchUsers)
+		r.Get("/api/users/{id}", authHandler.GetPublicProfile)
 		r.Get("/api/schools/teachers", schoolHandler.ListTeachers)
 		r.Post("/api/schools/teachers", schoolHandler.AddTeacher)
 		r.Get("/api/schools", schoolHandler.ListSchools)
@@ -128,6 +129,7 @@ func main() {
 		r.Get("/api/my-enrollments", courseHandler.MyEnrollments)
 		r.Get("/api/courses/{id}/enrollments", courseHandler.CourseEnrollments)
 		r.Post("/api/enrollments/{id}/approve", courseHandler.ApproveEnrollment)
+		r.Put("/api/courses/{id}/cover-image", courseHandler.UpdateCoverImage)
 
 		// Course content routes (curriculum & materials)
 		r.Get("/api/courses/{id}/curriculum", courseContentHandler.ListTopics)

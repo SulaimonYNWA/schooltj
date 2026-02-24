@@ -32,7 +32,7 @@ func (r *PaymentRepository) RecordPayment(ctx context.Context, p *domain.Payment
 // ListByCourse returns all payments for a course.
 func (r *PaymentRepository) ListByCourse(ctx context.Context, courseID string) ([]domain.Payment, error) {
 	query := `
-		SELECT p.id, p.student_user_id, COALESCE(u.name, u.email) as student_name,
+		SELECT p.id, p.student_user_id, COALESCE(u.name, u.email) as student_name, u.avatar_url as student_avatar,
 		       p.course_id, c.title as course_title,
 		       p.amount, p.method, COALESCE(p.note,''), p.recorded_by, p.paid_at, p.created_at
 		FROM payments p
@@ -47,7 +47,7 @@ func (r *PaymentRepository) ListByCourse(ctx context.Context, courseID string) (
 // ListByStudent returns all payments for a student.
 func (r *PaymentRepository) ListByStudent(ctx context.Context, studentUserID string) ([]domain.Payment, error) {
 	query := `
-		SELECT p.id, p.student_user_id, COALESCE(u.name, u.email) as student_name,
+		SELECT p.id, p.student_user_id, COALESCE(u.name, u.email) as student_name, u.avatar_url as student_avatar,
 		       p.course_id, c.title as course_title,
 		       p.amount, p.method, COALESCE(p.note,''), p.recorded_by, p.paid_at, p.created_at
 		FROM payments p
@@ -62,7 +62,7 @@ func (r *PaymentRepository) ListByStudent(ctx context.Context, studentUserID str
 // ListAll returns all payments (for admin).
 func (r *PaymentRepository) ListAll(ctx context.Context) ([]domain.Payment, error) {
 	query := `
-		SELECT p.id, p.student_user_id, COALESCE(u.name, u.email) as student_name,
+		SELECT p.id, p.student_user_id, COALESCE(u.name, u.email) as student_name, u.avatar_url as student_avatar,
 		       p.course_id, c.title as course_title,
 		       p.amount, p.method, COALESCE(p.note,''), p.recorded_by, p.paid_at, p.created_at
 		FROM payments p
@@ -92,9 +92,13 @@ func (r *PaymentRepository) scan(ctx context.Context, query string, args ...inte
 	var payments []domain.Payment
 	for rows.Next() {
 		var p domain.Payment
-		if err := rows.Scan(&p.ID, &p.StudentUserID, &p.StudentName, &p.CourseID, &p.CourseTitle,
+		var avatarURL sql.NullString
+		if err := rows.Scan(&p.ID, &p.StudentUserID, &p.StudentName, &avatarURL, &p.CourseID, &p.CourseTitle,
 			&p.Amount, &p.Method, &p.Note, &p.RecordedBy, &p.PaidAt, &p.CreatedAt); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			p.StudentAvatar = &avatarURL.String
 		}
 		payments = append(payments, p)
 	}

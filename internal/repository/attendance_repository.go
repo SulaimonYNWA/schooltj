@@ -34,7 +34,7 @@ func (r *AttendanceRepository) MarkAttendance(ctx context.Context, a *domain.Att
 func (r *AttendanceRepository) GetByCourseAndDate(ctx context.Context, courseID, date string) ([]domain.Attendance, error) {
 	query := `
 		SELECT a.id, a.enrollment_id, a.course_id, a.student_user_id, a.date, a.status, COALESCE(a.note,''), a.marked_by, a.created_at,
-		       COALESCE(u.name, u.email) as student_name
+		       COALESCE(u.name, u.email) as student_name, u.avatar_url as student_avatar
 		FROM attendance a
 		JOIN users u ON a.student_user_id = u.id
 		WHERE a.course_id = ? AND a.date = ?
@@ -49,8 +49,12 @@ func (r *AttendanceRepository) GetByCourseAndDate(ctx context.Context, courseID,
 	var records []domain.Attendance
 	for rows.Next() {
 		var a domain.Attendance
-		if err := rows.Scan(&a.ID, &a.EnrollmentID, &a.CourseID, &a.StudentUserID, &a.Date, &a.Status, &a.Note, &a.MarkedBy, &a.CreatedAt, &a.StudentName); err != nil {
+		var avatarURL sql.NullString
+		if err := rows.Scan(&a.ID, &a.EnrollmentID, &a.CourseID, &a.StudentUserID, &a.Date, &a.Status, &a.Note, &a.MarkedBy, &a.CreatedAt, &a.StudentName, &avatarURL); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			a.StudentAvatar = &avatarURL.String
 		}
 		records = append(records, a)
 	}

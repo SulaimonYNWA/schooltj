@@ -1,5 +1,5 @@
 import { Home, User, BookOpen, LogOut, Users, Calendar, DollarSign, Megaphone, Clock, Settings, Award, Bell, ClipboardList, MessageSquare, BarChart3 } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/axios';
@@ -107,11 +107,19 @@ export default function Sidebar() {
             </div>
 
             {user && (
-                <div className="mb-6 px-2 text-sm text-gray-400">
-                    <p>Welcome,</p>
-                    <p className="font-semibold text-white">{user.name || user.email}</p>
-                    <p className="text-xs uppercase mt-1 text-indigo-400 border border-indigo-400 rounded w-max px-1">{user.role}</p>
-                </div>
+                <Link to="/profile" className="mb-6 px-2 py-2 -mx-2 flex items-center gap-3 hover:bg-gray-800 rounded-md transition-colors cursor-pointer text-decoration-none">
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-gray-800 flex items-center justify-center overflow-hidden border border-gray-700">
+                        {user.avatar_url ? (
+                            <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                            <User className="h-5 w-5 text-gray-400" />
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-white">{user.name || user.email.split('@')[0]}</p>
+                        <p className="truncate text-xs text-indigo-400 capitalize">{user.role.replace('_', ' ')}</p>
+                    </div>
+                </Link>
             )}
 
             <nav className="flex-1 space-y-1 overflow-y-auto">

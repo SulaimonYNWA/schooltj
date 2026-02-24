@@ -11,6 +11,7 @@ interface Teacher {
     email: string;
     name: string;
     role: string;
+    avatar_url?: string;
     rating_avg: number;
     rating_count: number;
     created_at: string;
@@ -80,12 +81,18 @@ export default function Teachers() {
                             className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
                         >
                             <div className="flex items-center gap-4 mb-4">
-                                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                    <User className="h-6 w-6 text-indigo-600" />
-                                </div>
+                                <Link to={`/users/${teacher.id}`} className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity border-2 border-transparent hover:border-indigo-200 overflow-hidden text-decoration-none">
+                                    {teacher.avatar_url ? (
+                                        <img src={teacher.avatar_url} alt="" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <User className="h-6 w-6 text-indigo-600 block m-auto" />
+                                    )}
+                                </Link>
                                 <div className="min-w-0">
-                                    <h3 className="font-bold text-gray-900 truncate">{teacher.name || teacher.email.split('@')[0]}</h3>
-                                    <p className="text-xs text-indigo-600 font-medium uppercase tracking-wider">{teacher.role}</p>
+                                    <h3 className="font-bold text-gray-900 truncate">
+                                        <Link to={`/users/${teacher.id}`} className="hover:text-indigo-600 hover:underline">{teacher.name || teacher.email.split('@')[0]}</Link>
+                                    </h3>
+                                    <p className="text-xs text-indigo-600 font-medium uppercase tracking-wider mt-0.5">{teacher.role}</p>
                                 </div>
                             </div>
 

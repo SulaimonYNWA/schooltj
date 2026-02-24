@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { MessageSquare, Send, ArrowLeft, Search, X } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../lib/auth';
 
-interface Conversation { user_id: string; user_name: string; user_email: string; last_message: string; last_time: string; unread_count: number; }
-interface Message { id: string; from_user_id: string; from_name: string; to_user_id: string; to_name: string; content: string; is_read: boolean; created_at: string; }
-interface UserResult { id: string; name: string; email: string; role: string; }
+interface Conversation { user_id: string; user_name: string; user_email: string; avatar_url?: string; last_message: string; last_time: string; unread_count: number; }
+interface Message { id: string; from_user_id: string; from_name: string; from_avatar?: string; to_user_id: string; to_name: string; to_avatar?: string; content: string; is_read: boolean; created_at: string; }
+interface UserResult { id: string; name: string; email: string; role: string; avatar_url?: string; }
 
 export default function Messages() {
     const { user: currentUser } = useAuth();
@@ -20,6 +21,19 @@ export default function Messages() {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const msgEnd = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const userId = params.get('new_chat_user_id');
+        const userName = params.get('new_chat_user_name');
+        if (userId && userName) {
+            setActiveChat(userId);
+            setActiveName(userName);
+            navigate('/messages', { replace: true });
+        }
+    }, [location.search, navigate]);
 
     const { data: convos = [] } = useQuery<Conversation[]>({
         queryKey: ['conversations'],
@@ -112,12 +126,16 @@ export default function Messages() {
                             <div key={c.user_id} onClick={() => openConversation(c)}
                                 style={{ padding: '12px 16px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', background: activeChat === c.user_id ? '#eff6ff' : 'transparent', transition: 'background 0.1s' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: activeChat === c.user_id ? '#bfdbfe' : '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px', color: '#374151', flexShrink: 0 }}>
-                                        {(c.user_name || c.user_email).charAt(0).toUpperCase()}
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: activeChat === c.user_id ? '#bfdbfe' : '#e5e7eb', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px', color: '#374151', flexShrink: 0 }}>
+                                        {c.avatar_url ? (
+                                            <img src={c.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : (
+                                            (c.user_name || c.user_email).charAt(0).toUpperCase()
+                                        )}
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span style={{ fontWeight: 500, fontSize: '14px' }}>{c.user_name}</span>
+                                            <span style={{ fontWeight: 500, fontSize: '14px', color: 'inherit' }}>{c.user_name}</span>
                                             <span style={{ fontSize: '11px', color: '#9ca3af' }}>{formatTime(c.last_time)}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
@@ -143,11 +161,15 @@ export default function Messages() {
                                 <label style={{ display: 'block', fontSize: '13px', color: '#6b7280', marginBottom: '6px' }}>To:</label>
                                 {selectedUser ? (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }}>
-                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: '#2563eb' }}>
-                                            {(selectedUser.name || selectedUser.email).charAt(0).toUpperCase()}
-                                        </div>
+                                        <Link to={`/users/${selectedUser.id}`} style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#dbeafe', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>
+                                            {selectedUser.avatar_url ? (
+                                                <img src={selectedUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                (selectedUser.name || selectedUser.email).charAt(0).toUpperCase()
+                                            )}
+                                        </Link>
                                         <div style={{ flex: 1 }}>
-                                            <span style={{ fontWeight: 500, fontSize: '14px' }}>{selectedUser.name || selectedUser.email}</span>
+                                            <Link to={`/users/${selectedUser.id}`} style={{ fontWeight: 500, fontSize: '14px', textDecoration: 'none', color: 'inherit' }} className="hover:text-indigo-600 hover:underline">{selectedUser.name || selectedUser.email}</Link>
                                             <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '8px' }}>{selectedUser.email}</span>
                                         </div>
                                         <button onClick={() => setSelectedUser(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#9ca3af' }}><X size={16} /></button>
@@ -173,9 +195,13 @@ export default function Messages() {
                                                         style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #f9fafb', transition: 'background 0.1s' }}
                                                         onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
                                                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, color: '#7c3aed' }}>
-                                                            {(u.name || u.email).charAt(0).toUpperCase()}
-                                                        </div>
+                                                        <Link to={`/users/${u.id}`} onClick={(e) => e.stopPropagation()} style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#ede9fe', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, color: '#7c3aed', textDecoration: 'none' }}>
+                                                            {u.avatar_url ? (
+                                                                <img src={u.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            ) : (
+                                                                (u.name || u.email).charAt(0).toUpperCase()
+                                                            )}
+                                                        </Link>
                                                         <div>
                                                             <div style={{ fontWeight: 500, fontSize: '14px' }}>{u.name || u.email}</div>
                                                             <div style={{ fontSize: '12px', color: '#6b7280' }}>{u.email} · {u.role}</div>
@@ -211,18 +237,39 @@ export default function Messages() {
                         <>
                             <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <button onClick={() => setActiveChat(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}><ArrowLeft size={18} /></button>
-                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '13px', color: '#2563eb' }}>
-                                    {(activeName || 'C').charAt(0).toUpperCase()}
-                                </div>
-                                <span style={{ fontWeight: 600, fontSize: '14px' }}>{activeName || convos.find(c => c.user_id === activeChat)?.user_name || 'Chat'}</span>
+                                <Link to={`/users/${activeChat}`} style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dbeafe', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '13px', color: '#2563eb', textDecoration: 'none' }}>
+                                    {convos.find(c => c.user_id === activeChat)?.avatar_url ? (
+                                        <img src={convos.find(c => c.user_id === activeChat)?.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                        (activeName || 'C').charAt(0).toUpperCase()
+                                    )}
+                                </Link>
+                                <Link to={`/users/${activeChat}`} style={{ fontWeight: 600, fontSize: '14px', textDecoration: 'none', color: 'inherit' }} className="hover:text-indigo-600 hover:underline">{activeName || convos.find(c => c.user_id === activeChat)?.user_name || 'Chat'}</Link>
                             </div>
                             <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {msgs.map(m => (
-                                    <div key={m.id} style={{ alignSelf: m.to_user_id === activeChat ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
-                                        <div style={{ background: m.to_user_id === activeChat ? '#2563eb' : '#f3f4f6', color: m.to_user_id === activeChat ? 'white' : '#1f2937', padding: '10px 14px', borderRadius: m.to_user_id === activeChat ? '12px 12px 2px 12px' : '12px 12px 12px 2px', fontSize: '14px', lineHeight: 1.5 }}>{m.content}</div>
-                                        <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px', textAlign: m.to_user_id === activeChat ? 'right' : 'left' }}>{formatTime(m.created_at)}</div>
-                                    </div>
-                                ))}
+                                {msgs.map(m => {
+                                    const isMe = m.from_user_id === currentUser?.id;
+                                    const avatarUrl = isMe ? currentUser?.avatar_url : convos.find(c => c.user_id === activeChat)?.avatar_url;
+                                    const initial = (isMe ? (currentUser?.name || currentUser?.email) : (activeName || 'C'))?.charAt(0).toUpperCase();
+
+                                    return (
+                                        <div key={m.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '70%', display: 'flex', gap: '8px', alignItems: 'flex-end', flexDirection: isMe ? 'row-reverse' : 'row' }}>
+                                            <Link to={isMe ? '/profile' : `/users/${activeChat}`} style={{ width: '24px', height: '24px', borderRadius: '50%', background: isMe ? '#dbeafe' : '#f3f4f6', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: '10px', color: isMe ? '#2563eb' : '#374151', flexShrink: 0, textDecoration: 'none' }}>
+                                                {avatarUrl ? (
+                                                    <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ) : (
+                                                    initial
+                                                )}
+                                            </Link>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                                                <div style={{ background: isMe ? '#2563eb' : '#f3f4f6', color: isMe ? 'white' : '#1f2937', padding: '10px 14px', borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px', fontSize: '14px', lineHeight: 1.5 }}>
+                                                    {m.content}
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>{formatTime(m.created_at)}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                                 <div ref={msgEnd} />
                             </div>
                             <div style={{ padding: '12px 16px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: '8px' }}>

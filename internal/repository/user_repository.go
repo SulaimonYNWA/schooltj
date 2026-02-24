@@ -86,7 +86,7 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, userID, hashedPassw
 }
 
 func (r *UserRepository) SearchUsers(ctx context.Context, q string) ([]domain.User, error) {
-	query := `SELECT id, email, COALESCE(name, '') as name, role FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY name LIMIT 10`
+	query := `SELECT id, email, COALESCE(name, '') as name, role, avatar_url FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY name LIMIT 10`
 	pattern := "%" + q + "%"
 	rows, err := r.DB.QueryContext(ctx, query, pattern, pattern)
 	if err != nil {
@@ -96,8 +96,12 @@ func (r *UserRepository) SearchUsers(ctx context.Context, q string) ([]domain.Us
 	var users []domain.User
 	for rows.Next() {
 		var u domain.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role); err != nil {
+		var avatarURL sql.NullString
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &avatarURL); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			u.AvatarURL = &avatarURL.String
 		}
 		users = append(users, u)
 	}

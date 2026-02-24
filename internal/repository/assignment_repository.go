@@ -95,7 +95,7 @@ func (r *AssignmentRepository) GradeSubmission(ctx context.Context, submissionID
 }
 
 func (r *AssignmentRepository) ListSubmissions(ctx context.Context, assignmentID string) ([]domain.Submission, error) {
-	query := `SELECT s.id, s.assignment_id, s.student_user_id, COALESCE(u.name, u.email) as student_name, COALESCE(s.content, ''), COALESCE(s.link, ''), s.score, COALESCE(s.feedback, ''), s.submitted_at, s.graded_at
+	query := `SELECT s.id, s.assignment_id, s.student_user_id, COALESCE(u.name, u.email) as student_name, u.avatar_url as student_avatar, COALESCE(s.content, ''), COALESCE(s.link, ''), s.score, COALESCE(s.feedback, ''), s.submitted_at, s.graded_at
 		FROM submissions s
 		JOIN users u ON s.student_user_id = u.id
 		WHERE s.assignment_id = ?
@@ -108,8 +108,12 @@ func (r *AssignmentRepository) ListSubmissions(ctx context.Context, assignmentID
 	var submissions []domain.Submission
 	for rows.Next() {
 		var s domain.Submission
-		if err := rows.Scan(&s.ID, &s.AssignmentID, &s.StudentUserID, &s.StudentName, &s.Content, &s.Link, &s.Score, &s.Feedback, &s.SubmittedAt, &s.GradedAt); err != nil {
+		var avatarURL sql.NullString
+		if err := rows.Scan(&s.ID, &s.AssignmentID, &s.StudentUserID, &s.StudentName, &avatarURL, &s.Content, &s.Link, &s.Score, &s.Feedback, &s.SubmittedAt, &s.GradedAt); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			s.StudentAvatar = &avatarURL.String
 		}
 		submissions = append(submissions, s)
 	}
@@ -117,7 +121,7 @@ func (r *AssignmentRepository) ListSubmissions(ctx context.Context, assignmentID
 }
 
 func (r *AssignmentRepository) MySubmissions(ctx context.Context, studentID string) ([]domain.Submission, error) {
-	query := `SELECT s.id, s.assignment_id, s.student_user_id, '' as student_name, COALESCE(s.content, ''), COALESCE(s.link, ''), s.score, COALESCE(s.feedback, ''), s.submitted_at, s.graded_at
+	query := `SELECT s.id, s.assignment_id, s.student_user_id, '' as student_name, NULL as student_avatar, COALESCE(s.content, ''), COALESCE(s.link, ''), s.score, COALESCE(s.feedback, ''), s.submitted_at, s.graded_at
 		FROM submissions s
 		WHERE s.student_user_id = ?
 		ORDER BY s.submitted_at DESC`
@@ -129,8 +133,12 @@ func (r *AssignmentRepository) MySubmissions(ctx context.Context, studentID stri
 	var submissions []domain.Submission
 	for rows.Next() {
 		var s domain.Submission
-		if err := rows.Scan(&s.ID, &s.AssignmentID, &s.StudentUserID, &s.StudentName, &s.Content, &s.Link, &s.Score, &s.Feedback, &s.SubmittedAt, &s.GradedAt); err != nil {
+		var avatarURL sql.NullString
+		if err := rows.Scan(&s.ID, &s.AssignmentID, &s.StudentUserID, &s.StudentName, &avatarURL, &s.Content, &s.Link, &s.Score, &s.Feedback, &s.SubmittedAt, &s.GradedAt); err != nil {
 			return nil, err
+		}
+		if avatarURL.Valid {
+			s.StudentAvatar = &avatarURL.String
 		}
 		submissions = append(submissions, s)
 	}

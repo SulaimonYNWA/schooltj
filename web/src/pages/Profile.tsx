@@ -5,9 +5,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Mail, Save, Edit2, Shield, Clock, Camera, Trash2, Loader2 } from 'lucide-react';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../lib/firebase';
+import imageCompression from 'browser-image-compression';
 
 export default function Profile() {
-    const { user: authUser } = useAuth();
+    const { user: authUser, setUser } = useAuth();
     const queryClient = useQueryClient();
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({
@@ -33,8 +34,11 @@ export default function Profile() {
             const response = await api.put('/me', data);
             return response.data;
         },
-        onSuccess: () => {
+        onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['me'] });
+            if (authUser) {
+                setUser({ ...authUser, name: variables.name, email: variables.email });
+            }
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
             setIsEditing(false);
             setTimeout(() => setMessage(null), 3000);
@@ -53,8 +57,11 @@ export default function Profile() {
             const response = await api.put('/me/avatar', { avatar_url });
             return response.data;
         },
-        onSuccess: () => {
+        onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['me'] });
+            if (authUser) {
+                setUser({ ...authUser, avatar_url: variables });
+            }
             setMessage({ type: 'success', text: 'Avatar updated successfully!' });
             setTimeout(() => setMessage(null), 3000);
         },
@@ -73,6 +80,9 @@ export default function Profile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['me'] });
+            if (authUser) {
+                setUser({ ...authUser, avatar_url: undefined });
+            }
             setMessage({ type: 'success', text: 'Avatar removed successfully!' });
             setTimeout(() => setMessage(null), 3000);
         },
@@ -108,12 +118,21 @@ export default function Profile() {
             setUploadingAvatar(true);
             setUploadProgress(0);
 
+            // Compress the image
+            const options = {
+                maxSizeMB: 1, // Max file size in MB
+                maxWidthOrHeight: 800, // Max width or height in pixels
+                useWebWorker: true,
+                fileType: 'image/webp' // Converting to webp for better compression
+            };
+            const compressedFile = await imageCompression(file, options);
+
             // Create a unique filename
-            const ext = file.name.split('.').pop() || 'jpg';
+            const ext = 'webp'; // Since we are compressing to webp
             const filename = `avatars/${authUser.id}-${Date.now()}.${ext}`;
             const storageRef = ref(storage, filename);
 
-            const uploadTask = uploadBytesResumable(storageRef, file);
+            const uploadTask = uploadBytesResumable(storageRef, compressedFile);
 
             uploadTask.on('state_changed',
                 (snapshot: any) => {
