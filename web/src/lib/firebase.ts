@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDiM75Qc1bTXpwFiNUV9RYnWmD0lO5Oqsk",
+    apiKey: "[GCP_API_KEY]",
     authDomain: "school-tj.firebaseapp.com",
     projectId: "school-tj",
     storageBucket: "school-tj.firebasestorage.app",
