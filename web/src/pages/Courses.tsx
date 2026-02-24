@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
-import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image, Camera } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image, Camera, UserCheck, UserX, Users } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
@@ -34,6 +34,8 @@ interface Course {
 interface Enrollment {
     id: string;
     student_user_id: string;
+    student_name?: string;
+    student_avatar?: string;
     course_id: string;
     enrolled_at: string;
     status: string;
@@ -71,6 +73,7 @@ export default function CourseList() {
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
     const [viewedCourse, setViewedCourse] = useState<Course | null>(null);
     const [viewMode, setViewMode] = useState<'all' | 'my'>('all');
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const { data: courses, isLoading, error } = useQuery<Course[]>({
         queryKey: ['courses'],
@@ -89,6 +92,18 @@ export default function CourseList() {
         },
         enabled: !!user && user.role === 'student',
     });
+
+    // Auto-open modal when ?view=courseId is in URL
+    useEffect(() => {
+        const viewCourseId = searchParams.get('view');
+        if (viewCourseId && courses) {
+            const found = courses.find(c => c.id === viewCourseId);
+            if (found) {
+                setViewedCourse(found);
+                setSearchParams({}, { replace: true });
+            }
+        }
+    }, [courses, searchParams, setSearchParams]);
 
     const isTeacherOrSchool = user?.role === 'teacher' || user?.role === 'school_admin';
     const isStudent = user?.role === 'student';
@@ -120,6 +135,16 @@ export default function CourseList() {
         } catch (err: any) {
             console.error(err);
             alert('Failed to respond to invitation: ' + (err.response?.data || err.message));
+        }
+    };
+
+    const handleCancelRequest = async (enrollmentId: string) => {
+        try {
+            await api.delete(`/api/enrollments/${enrollmentId}/cancel`);
+            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
+        } catch (err: any) {
+            console.error(err);
+            alert('Failed to cancel request: ' + (err.response?.data || err.message));
         }
     };
 
@@ -196,7 +221,8 @@ export default function CourseList() {
                         const enrollment = myEnrollments?.find(e => e.course.id === course.id)?.enrollment;
                         const statusColor = enrollment?.status === 'active' ? 'bg-green-100 text-green-800' :
                             enrollment?.status === 'invited' ? 'bg-blue-100 text-blue-800' :
-                                enrollment?.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800';
+                                enrollment?.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                    enrollment?.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-800';
 
                         return (
                             <div
@@ -309,6 +335,7 @@ export default function CourseList() {
                     enrollment={myEnrollments?.find(e => e.course.id === viewedCourse.id)?.enrollment}
                     onRequestAccess={() => handleRequestAccess(viewedCourse.id)}
                     onRespond={handleRespondInvitation}
+                    onCancelRequest={handleCancelRequest}
                 />
             )}
 
@@ -340,7 +367,7 @@ export default function CourseList() {
 }
 
 function CourseDetailsModal({
-    course, onClose, onInvite, canInvite, isStudent, enrollment, onRequestAccess, onRespond
+    course, onClose, onInvite, canInvite, isStudent, enrollment, onRequestAccess, onRespond, onCancelRequest
 }: {
     course: Course,
     onClose: () => void,
@@ -349,11 +376,12 @@ function CourseDetailsModal({
     isStudent?: boolean,
     enrollment?: Enrollment,
     onRequestAccess?: () => void,
-    onRespond?: (enrollmentId: string, accept: boolean) => void
+    onRespond?: (enrollmentId: string, accept: boolean) => void,
+    onCancelRequest?: (enrollmentId: string) => void,
 }) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<'details' | 'curriculum' | 'materials'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'curriculum' | 'materials' | 'students'>('details');
     const isTeacher = user?.role === 'teacher' || user?.role === 'school_admin';
     const isEnrolled = enrollment?.status === 'active';
     const canViewContent = isTeacher || isEnrolled;
@@ -390,6 +418,23 @@ function CourseDetailsModal({
     const deleteTopicMutation = useMutation({
         mutationFn: async (id: string) => api.delete(`/api/courses/${course.id}/curriculum/${id}`),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }),
+    });
+
+    // ── Enrollments (students tab) ──
+    const { data: courseEnrollments, isLoading: enrollmentsLoading } = useQuery<Enrollment[]>({
+        queryKey: ['course-enrollments', course.id],
+        queryFn: async () => { const res = await api.get(`/api/courses/${course.id}/enrollments`); return res.data; },
+        enabled: activeTab === 'students' && isTeacher,
+    });
+
+    const approveEnrollmentMutation = useMutation({
+        mutationFn: async ({ enrollmentId, approve }: { enrollmentId: string; approve: boolean }) => {
+            return api.post(`/api/enrollments/${enrollmentId}/approve`, { approve });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['course-enrollments', course.id] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+        },
     });
 
     // ── Materials state ──
@@ -498,6 +543,7 @@ function CourseDetailsModal({
         { key: 'details' as const, label: 'Details' },
         { key: 'curriculum' as const, label: 'Curriculum' },
         { key: 'materials' as const, label: 'Materials' },
+        ...(isTeacher ? [{ key: 'students' as const, label: `Students${courseEnrollments ? ` (${courseEnrollments.length})` : ''}` }] : []),
     ];
 
     return (
@@ -797,6 +843,131 @@ function CourseDetailsModal({
                                 )}
                             </div>
                         )}
+
+                        {/* ──── Students Tab ──── */}
+                        {activeTab === 'students' && isTeacher && (
+                            <div>
+                                {enrollmentsLoading ? (
+                                    <div className="text-center py-8 text-gray-500 italic">Loading students...</div>
+                                ) : !courseEnrollments || courseEnrollments.length === 0 ? (
+                                    <div className="text-center py-8 text-gray-400">
+                                        <Users className="mx-auto h-10 w-10 mb-3" />
+                                        <p className="text-sm">No students enrolled or pending.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {/* Pending requests first */}
+                                        {courseEnrollments.filter(e => e.status === 'pending').length > 0 && (
+                                            <div className="mb-4">
+                                                <h4 className="text-xs font-semibold text-yellow-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                                                    Pending Requests ({courseEnrollments.filter(e => e.status === 'pending').length})
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {courseEnrollments.filter(e => e.status === 'pending').map(e => (
+                                                        <div key={e.id} className="flex items-center gap-3 bg-yellow-50 border border-yellow-100 rounded-lg p-3">
+                                                            <Link to={`/users/${e.student_user_id}`} className="flex-shrink-0">
+                                                                {e.student_avatar ? (
+                                                                    <img src={e.student_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                                                ) : (
+                                                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                                                        <User className="h-4 w-4 text-gray-500" />
+                                                                    </div>
+                                                                )}
+                                                            </Link>
+                                                            <div className="flex-1 min-w-0">
+                                                                <Link to={`/users/${e.student_user_id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline">
+                                                                    {e.student_name || 'Unknown Student'}
+                                                                </Link>
+                                                                <p className="text-xs text-gray-500">Requested {new Date(e.enrolled_at).toLocaleDateString()}</p>
+                                                            </div>
+                                                            <div className="flex gap-1.5">
+                                                                <button
+                                                                    onClick={() => approveEnrollmentMutation.mutate({ enrollmentId: e.id, approve: true })}
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                                                                >
+                                                                    <UserCheck className="h-3.5 w-3.5" /> Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => approveEnrollmentMutation.mutate({ enrollmentId: e.id, approve: false })}
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+                                                                >
+                                                                    <UserX className="h-3.5 w-3.5" /> Reject
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Active students */}
+                                        {courseEnrollments.filter(e => e.status === 'active').length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                                                    Active Students ({courseEnrollments.filter(e => e.status === 'active').length})
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {courseEnrollments.filter(e => e.status === 'active').map(e => (
+                                                        <div key={e.id} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
+                                                            <Link to={`/users/${e.student_user_id}`} className="flex-shrink-0">
+                                                                {e.student_avatar ? (
+                                                                    <img src={e.student_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                                                ) : (
+                                                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                                                        <User className="h-4 w-4 text-gray-500" />
+                                                                    </div>
+                                                                )}
+                                                            </Link>
+                                                            <div className="flex-1 min-w-0">
+                                                                <Link to={`/users/${e.student_user_id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline">
+                                                                    {e.student_name || 'Unknown Student'}
+                                                                </Link>
+                                                                <p className="text-xs text-gray-500">Joined {new Date(e.enrolled_at).toLocaleDateString()}</p>
+                                                            </div>
+                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Active</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Invited students */}
+                                        {courseEnrollments.filter(e => e.status === 'invited').length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                                                    Invited ({courseEnrollments.filter(e => e.status === 'invited').length})
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {courseEnrollments.filter(e => e.status === 'invited').map(e => (
+                                                        <div key={e.id} className="flex items-center gap-3 bg-blue-50 rounded-lg p-3">
+                                                            <Link to={`/users/${e.student_user_id}`} className="flex-shrink-0">
+                                                                {e.student_avatar ? (
+                                                                    <img src={e.student_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                                                ) : (
+                                                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                                                        <User className="h-4 w-4 text-gray-500" />
+                                                                    </div>
+                                                                )}
+                                                            </Link>
+                                                            <div className="flex-1 min-w-0">
+                                                                <Link to={`/users/${e.student_user_id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline">
+                                                                    {e.student_name || 'Unknown Student'}
+                                                                </Link>
+                                                                <p className="text-xs text-gray-500">Invited {new Date(e.enrolled_at).toLocaleDateString()}</p>
+                                                            </div>
+                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Pending Response</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer */}
@@ -810,11 +981,11 @@ function CourseDetailsModal({
                         )}
                         {isStudent && (
                             <>
-                                {!enrollment && onRequestAccess && (
+                                {(!enrollment || enrollment.status === 'rejected') && onRequestAccess && (
                                     <button type="button"
                                         className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:w-auto sm:text-sm"
                                         onClick={onRequestAccess}>
-                                        Request Access
+                                        {enrollment?.status === 'rejected' ? 'Request Again' : 'Request Access'}
                                     </button>
                                 )}
                                 {enrollment?.status === 'invited' && onRespond && (
@@ -831,10 +1002,11 @@ function CourseDetailsModal({
                                         </button>
                                     </>
                                 )}
-                                {enrollment?.status === 'pending' && (
-                                    <button type="button" disabled
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-yellow-400 text-base font-medium text-white cursor-not-allowed sm:w-auto sm:text-sm">
-                                        Request Pending
+                                {enrollment?.status === 'pending' && onCancelRequest && (
+                                    <button type="button"
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-yellow-500 text-base font-medium text-white hover:bg-yellow-600 sm:w-auto sm:text-sm"
+                                        onClick={() => onCancelRequest(enrollment.id)}>
+                                        Cancel Request
                                     </button>
                                 )}
                             </>

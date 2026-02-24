@@ -90,6 +90,8 @@ type Course struct {
 type Enrollment struct {
 	ID            string    `json:"id"`
 	StudentUserID string    `json:"student_user_id"`
+	StudentName   string    `json:"student_name,omitempty"`
+	StudentAvatar *string   `json:"student_avatar,omitempty"`
 	CourseID      string    `json:"course_id"`
 	EnrolledAt    time.Time `json:"enrolled_at"`
 	Status        string    `json:"status"`

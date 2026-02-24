@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
 import { BookOpen, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Schedule {
     days?: string[];
@@ -158,7 +159,9 @@ export default function Timetable() {
                                                 <div className="flex items-center gap-1">
                                                     <div className={`h-1.5 w-1.5 rounded-full ${colors.dot} flex-shrink-0`} />
                                                     <p className={`text-xs font-semibold truncate ${colors.text}`}>
-                                                        {slot.course.title}
+                                                        <Link to={`/courses?view=${slot.course.id}`} className="hover:underline">
+                                                            {slot.course.title}
+                                                        </Link>
                                                     </p>
                                                 </div>
                                                 {slot.span >= 2 && (
@@ -192,7 +195,11 @@ export default function Timetable() {
                                 <div key={course.id} className="flex items-center gap-2">
                                     <div className={`h-3 w-3 rounded ${colors.dot}`} />
                                     <div className="min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate">{course.title}</p>
+                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                            <Link to={`/courses?view=${course.id}`} className="hover:text-indigo-600 hover:underline">
+                                                {course.title}
+                                            </Link>
+                                        </p>
                                         <p className="text-xs text-gray-500">
                                             {course.schedule?.days?.join(', ')} · {course.schedule?.start_time}–{course.schedule?.end_time}
                                         </p>

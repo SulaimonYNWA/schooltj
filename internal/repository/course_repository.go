@@ -172,6 +172,19 @@ func (r *CourseRepository) CreateEnrollment(ctx context.Context, enrollment *dom
 	return err
 }
 
+func (r *CourseRepository) GetEnrollmentByID(ctx context.Context, id string) (*domain.Enrollment, error) {
+	query := `SELECT id, student_user_id, course_id, enrolled_at, status FROM enrollments WHERE id = ?`
+	var e domain.Enrollment
+	err := r.DB.QueryRowContext(ctx, query, id).Scan(&e.ID, &e.StudentUserID, &e.CourseID, &e.EnrolledAt, &e.Status)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrEnrollmentNotFound
+		}
+		return nil, err
+	}
+	return &e, nil
+}
+
 func (r *CourseRepository) UpdateEnrollmentStatus(ctx context.Context, enrollmentID string, status string) error {
 	query := `UPDATE enrollments SET status = ? WHERE id = ?`
 	result, err := r.DB.ExecContext(ctx, query, status, enrollmentID)
@@ -186,6 +199,11 @@ func (r *CourseRepository) UpdateEnrollmentStatus(ctx context.Context, enrollmen
 		return ErrEnrollmentNotFound
 	}
 	return nil
+}
+
+func (r *CourseRepository) DeleteEnrollment(ctx context.Context, enrollmentID string) error {
+	_, err := r.DB.ExecContext(ctx, `DELETE FROM enrollments WHERE id = ?`, enrollmentID)
+	return err
 }
 
 func (r *CourseRepository) GetEnrollmentsByStudent(ctx context.Context, studentID string) ([]*domain.Enrollment, error) {
@@ -209,7 +227,11 @@ func (r *CourseRepository) GetEnrollmentsByStudent(ctx context.Context, studentI
 
 // GetEnrollmentsByCourse gets enrollments for a course, useful for teachers to see who is invited/enrolled
 func (r *CourseRepository) GetEnrollmentsByCourse(ctx context.Context, courseID string) ([]*domain.Enrollment, error) {
-	query := `SELECT id, student_user_id, course_id, enrolled_at, status FROM enrollments WHERE course_id = ? ORDER BY enrolled_at DESC`
+	query := `SELECT e.id, e.student_user_id, e.course_id, e.enrolled_at, e.status,
+	           COALESCE(u.name, '') as student_name, u.avatar_url
+	           FROM enrollments e
+	           LEFT JOIN users u ON e.student_user_id = u.id
+	           WHERE e.course_id = ? ORDER BY e.enrolled_at DESC`
 	rows, err := r.DB.QueryContext(ctx, query, courseID)
 	if err != nil {
 		return nil, err
@@ -219,8 +241,16 @@ func (r *CourseRepository) GetEnrollmentsByCourse(ctx context.Context, courseID 
 	var enrollments []*domain.Enrollment
 	for rows.Next() {
 		var e domain.Enrollment
-		if err := rows.Scan(&e.ID, &e.StudentUserID, &e.CourseID, &e.EnrolledAt, &e.Status); err != nil {
+		var studentName sql.NullString
+		var avatarURL sql.NullString
+		if err := rows.Scan(&e.ID, &e.StudentUserID, &e.CourseID, &e.EnrolledAt, &e.Status, &studentName, &avatarURL); err != nil {
 			return nil, err
+		}
+		if studentName.Valid {
+			e.StudentName = studentName.String
+		}
+		if avatarURL.Valid {
+			e.StudentAvatar = &avatarURL.String
 		}
 		enrollments = append(enrollments, &e)
 	}

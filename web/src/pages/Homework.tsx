@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
 import { ClipboardList, Plus, Clock, CheckCircle, Send, BookOpen } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 interface Assignment {
     id: string;
@@ -78,7 +79,7 @@ export default function Homework() {
                                 <div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                                         <BookOpen size={14} style={{ color: '#d97706' }} />
-                                        <span style={{ fontSize: '12px', color: '#6b7280' }}>{a.course_title}</span>
+                                        <span style={{ fontSize: '12px', color: '#6b7280' }}><Link to={`/courses?view=${a.course_id}`} style={{ color: '#6b7280', textDecoration: 'none' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{a.course_title}</Link></span>
                                     </div>
                                     <h3 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 600 }}>{a.title}</h3>
                                     {a.description && <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{a.description}</p>}

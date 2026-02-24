@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -16,14 +15,6 @@ import (
 )
 
 func main() {
-	// Setup logging to file and stdout
-	logFile, err := os.OpenFile("server.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatalf("error opening log file: %v", err)
-	}
-	defer logFile.Close()
-	mw := io.MultiWriter(os.Stdout, logFile)
-	log.SetOutput(mw)
 
 	dbUser := os.Getenv("DB_USER")
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -51,7 +42,9 @@ func main() {
 	authService := service.NewAuthService(userRepo, schoolRepo, studentRepo, "your-secret-key") // TODO: Move secret to env
 	authHandler := handler.NewAuthHandler(authService)
 	courseRepo := repository.NewCourseRepository(repo.DB)
-	courseService := service.NewCourseService(courseRepo, schoolRepo, userRepo, studentRepo) // Inject studentRepo
+	notificationRepo := repository.NewNotificationRepository(repo.DB)
+	announcementRepo := repository.NewAnnouncementRepository(repo.DB)
+	courseService := service.NewCourseService(courseRepo, schoolRepo, userRepo, studentRepo, notificationRepo, announcementRepo)
 	schoolService := service.NewSchoolService(schoolRepo, authService, courseService)
 	schoolHandler := handler.NewSchoolHandler(schoolService, schoolRepo)
 	courseHandler := handler.NewCourseHandler(courseService)
@@ -66,7 +59,6 @@ func main() {
 	paymentRepo := repository.NewPaymentRepository(repo.DB)
 	paymentService := service.NewPaymentService(paymentRepo)
 	paymentHandler := handler.NewPaymentHandler(paymentService)
-	announcementRepo := repository.NewAnnouncementRepository(repo.DB)
 	announcementService := service.NewAnnouncementService(announcementRepo)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	dashboardHandler := handler.NewDashboardHandler(repo.DB)
@@ -74,7 +66,6 @@ func main() {
 	gradeRepo := repository.NewGradeRepository(repo.DB)
 	gradeService := service.NewGradeService(gradeRepo)
 	gradeHandler := handler.NewGradeHandler(gradeService)
-	notificationRepo := repository.NewNotificationRepository(repo.DB)
 	notificationService := service.NewNotificationService(notificationRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationService)
 	assignmentRepo := repository.NewAssignmentRepository(repo.DB)
@@ -130,6 +121,7 @@ func main() {
 		r.Get("/api/courses/{id}/enrollments", courseHandler.CourseEnrollments)
 		r.Post("/api/enrollments/{id}/approve", courseHandler.ApproveEnrollment)
 		r.Put("/api/courses/{id}/cover-image", courseHandler.UpdateCoverImage)
+		r.Delete("/api/enrollments/{id}/cancel", courseHandler.CancelEnrollment)
 
 		// Course content routes (curriculum & materials)
 		r.Get("/api/courses/{id}/curriculum", courseContentHandler.ListTopics)

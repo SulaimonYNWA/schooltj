@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { Bell, Check, CheckCheck, Clock, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface Notification {
     id: string;
@@ -22,6 +23,7 @@ const typeIcon: Record<string, { bg: string; color: string }> = {
 
 export default function Notifications() {
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
 
     const { data: notifications = [] } = useQuery<Notification[]>({
         queryKey: ['notifications'],
@@ -86,13 +88,16 @@ export default function Notifications() {
                     return (
                         <div
                             key={n.id}
-                            onClick={() => !n.is_read && markRead.mutate(n.id)}
+                            onClick={() => {
+                                if (!n.is_read) markRead.mutate(n.id);
+                                if (n.link) navigate(n.link);
+                            }}
                             style={{
                                 background: n.is_read ? '#fafafa' : 'white',
                                 borderRadius: '12px',
                                 border: `1px solid ${n.is_read ? '#f3f4f6' : '#e5e7eb'}`,
                                 padding: '16px',
-                                cursor: n.is_read ? 'default' : 'pointer',
+                                cursor: 'pointer',
                                 transition: 'all 0.15s',
                                 display: 'flex',
                                 alignItems: 'flex-start',

@@ -251,3 +251,21 @@ func (h *CourseHandler) UpdateCoverImage(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "cover image updated"}`))
 }
+
+func (h *CourseHandler) CancelEnrollment(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	enrollmentID := chi.URLParam(r, "id")
+
+	if !ok || enrollmentID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.CancelEnrollment(r.Context(), userID, enrollmentID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "enrollment cancelled"}`))
+}

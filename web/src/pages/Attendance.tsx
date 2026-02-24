@@ -279,7 +279,7 @@ function StudentAttendanceView() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                     {summaries.map(s => (
                         <div key={s.course_id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                            <h3 className="font-bold text-gray-900 truncate mb-4">{s.course_title}</h3>
+                            <h3 className="font-bold text-gray-900 truncate mb-4"><Link to={`/courses?view=${s.course_id}`} className="hover:text-indigo-600 hover:underline">{s.course_title}</Link></h3>
                             <div className="mb-3">
                                 <div className="flex items-center justify-between mb-1">
                                     <span className="text-sm text-gray-600">Attendance Rate</span>

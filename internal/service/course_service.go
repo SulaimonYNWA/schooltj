@@ -3,24 +3,29 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/schooltj/internal/domain"
 	"github.com/schooltj/internal/repository"
 )
 
 type CourseService struct {
-	courseRepo  *repository.CourseRepository
-	schoolRepo  *repository.SchoolRepository
-	userRepo    *repository.UserRepository
-	studentRepo *repository.StudentRepository
+	courseRepo       *repository.CourseRepository
+	schoolRepo       *repository.SchoolRepository
+	userRepo         *repository.UserRepository
+	studentRepo      *repository.StudentRepository
+	notificationRepo *repository.NotificationRepository
+	announcementRepo *repository.AnnouncementRepository
 }
 
-func NewCourseService(courseRepo *repository.CourseRepository, schoolRepo *repository.SchoolRepository, userRepo *repository.UserRepository, studentRepo *repository.StudentRepository) *CourseService {
+func NewCourseService(courseRepo *repository.CourseRepository, schoolRepo *repository.SchoolRepository, userRepo *repository.UserRepository, studentRepo *repository.StudentRepository, notificationRepo *repository.NotificationRepository, announcementRepo *repository.AnnouncementRepository) *CourseService {
 	return &CourseService{
-		courseRepo:  courseRepo,
-		schoolRepo:  schoolRepo,
-		userRepo:    userRepo,
-		studentRepo: studentRepo,
+		courseRepo:       courseRepo,
+		schoolRepo:       schoolRepo,
+		userRepo:         userRepo,
+		studentRepo:      studentRepo,
+		notificationRepo: notificationRepo,
+		announcementRepo: announcementRepo,
 	}
 }
 
@@ -200,32 +205,68 @@ func (s *CourseService) InviteStudent(ctx context.Context, inviterID string, rol
 }
 
 func (s *CourseService) RequestEnrollment(ctx context.Context, studentID, courseID string) error {
-	// 1. Check if user is student (Should be checked by role context in handler, but double check doesn't hurt)
-	// Assuming caller verified role=student
-
-	// 2. Check if course exists
-	_, err := s.courseRepo.GetCourseByID(ctx, courseID)
+	// 1. Check if course exists
+	course, err := s.courseRepo.GetCourseByID(ctx, courseID)
 	if err != nil {
 		return err
 	}
 
-	// 3. Check existing enrollment
+	// 2. Check existing enrollment
 	existing, err := s.courseRepo.GetEnrollmentByStudentAndCourse(ctx, studentID, courseID)
 	if existing != nil {
-		return errors.New("already enrolled or access requested")
+		if existing.Status == domain.EnrollmentStatusRejected {
+			// Allow re-request by deleting the rejected enrollment
+			_ = s.courseRepo.DeleteEnrollment(ctx, existing.ID)
+		} else {
+			return errors.New("already enrolled or access requested")
+		}
 	}
 	if err != nil && err != repository.ErrEnrollmentNotFound {
 		return err
 	}
 
-	// 4. Create Pending Enrollment
+	// 3. Create Pending Enrollment
 	enrollment := &domain.Enrollment{
 		StudentUserID: studentID,
 		CourseID:      courseID,
 		Status:        domain.EnrollmentStatusPending,
 	}
 
-	return s.courseRepo.CreateEnrollment(ctx, enrollment)
+	if err := s.courseRepo.CreateEnrollment(ctx, enrollment); err != nil {
+		return err
+	}
+
+	// 4. Notify the teacher and school admin
+	student, _ := s.userRepo.GetUserByID(ctx, studentID)
+	studentName := "A student"
+	if student != nil && student.Name != "" {
+		studentName = student.Name
+	}
+
+	if course.TeacherID != nil {
+		_ = s.notificationRepo.Create(ctx, &domain.Notification{
+			UserID:  *course.TeacherID,
+			Type:    "enrollment_request",
+			Title:   "New Access Request",
+			Message: fmt.Sprintf("%s requested access to %s", studentName, course.Title),
+			Link:    fmt.Sprintf("/courses?view=%s", courseID),
+		})
+	}
+
+	if course.SchoolID != nil {
+		school, err := s.schoolRepo.GetSchoolByID(ctx, *course.SchoolID)
+		if err == nil && school != nil {
+			_ = s.notificationRepo.Create(ctx, &domain.Notification{
+				UserID:  school.AdminUserID,
+				Type:    "enrollment_request",
+				Title:   "New Access Request",
+				Message: fmt.Sprintf("%s requested access to %s", studentName, course.Title),
+				Link:    fmt.Sprintf("/courses?view=%s", courseID),
+			})
+		}
+	}
+
+	return nil
 }
 
 func (s *CourseService) RespondToInvitation(ctx context.Context, studentID, enrollmentID string, accept bool) error {
@@ -310,7 +351,77 @@ func (s *CourseService) ApproveOrRejectEnrollment(ctx context.Context, userID st
 		newStatus = domain.EnrollmentStatusActive
 	}
 
-	return s.courseRepo.UpdateEnrollmentStatus(ctx, enrollmentID, newStatus)
+	if err := s.courseRepo.UpdateEnrollmentStatus(ctx, enrollmentID, newStatus); err != nil {
+		return err
+	}
+
+	// On approval, create an announcement
+	if approve {
+		enrollment, err := s.courseRepo.GetEnrollmentByID(ctx, enrollmentID)
+		if err == nil && enrollment != nil {
+			course, _ := s.courseRepo.GetCourseByID(ctx, enrollment.CourseID)
+			student, _ := s.userRepo.GetUserByID(ctx, enrollment.StudentUserID)
+
+			studentName := "A new student"
+			if student != nil && student.Name != "" {
+				studentName = student.Name
+			}
+			courseTitle := "a course"
+			if course != nil {
+				courseTitle = course.Title
+			}
+
+			_ = s.announcementRepo.Create(ctx, &domain.Announcement{
+				CourseID: &enrollment.CourseID,
+				AuthorID: userID,
+				Title:    "New Student Joined",
+				Content:  fmt.Sprintf("%s has been approved and joined %s.", studentName, courseTitle),
+				IsPinned: false,
+			})
+
+			// Notify the student
+			_ = s.notificationRepo.Create(ctx, &domain.Notification{
+				UserID:  enrollment.StudentUserID,
+				Type:    "enrollment_approved",
+				Title:   "Access Approved",
+				Message: fmt.Sprintf("Your access request to %s has been approved!", courseTitle),
+				Link:    fmt.Sprintf("/courses?view=%s", enrollment.CourseID),
+			})
+		}
+	} else {
+		// On rejection, notify the student
+		enrollment, err := s.courseRepo.GetEnrollmentByID(ctx, enrollmentID)
+		if err == nil && enrollment != nil {
+			course, _ := s.courseRepo.GetCourseByID(ctx, enrollment.CourseID)
+			courseTitle := "a course"
+			if course != nil {
+				courseTitle = course.Title
+			}
+			_ = s.notificationRepo.Create(ctx, &domain.Notification{
+				UserID:  enrollment.StudentUserID,
+				Type:    "enrollment_rejected",
+				Title:   "Access Denied",
+				Message: fmt.Sprintf("Your access request to %s has been denied.", courseTitle),
+				Link:    fmt.Sprintf("/courses?view=%s", enrollment.CourseID),
+			})
+		}
+	}
+
+	return nil
+}
+
+func (s *CourseService) CancelEnrollment(ctx context.Context, studentID, enrollmentID string) error {
+	enrollment, err := s.courseRepo.GetEnrollmentByID(ctx, enrollmentID)
+	if err != nil {
+		return errors.New("enrollment not found")
+	}
+	if enrollment.StudentUserID != studentID {
+		return errors.New("unauthorized")
+	}
+	if enrollment.Status != domain.EnrollmentStatusPending {
+		return errors.New("only pending requests can be cancelled")
+	}
+	return s.courseRepo.DeleteEnrollment(ctx, enrollmentID)
 }
 
 func (s *CourseService) UpdateCoverImage(ctx context.Context, courseID string, url *string) error {
