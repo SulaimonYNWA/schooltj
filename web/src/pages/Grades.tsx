@@ -115,7 +115,7 @@ export default function Grades() {
                                         <td style={{ padding: '12px 16px', fontSize: '14px', fontWeight: 500 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <BookOpen size={14} style={{ color: '#7c3aed' }} />
-                                                <Link to={`/courses?view=${g.course_id}`} className="hover:text-indigo-600 hover:underline">{g.course_title}</Link>
+                                                <Link to={`/courses/${g.course_id}`} className="hover:text-indigo-600 hover:underline">{g.course_title}</Link>
                                             </div>
                                         </td>
                                         <td style={{ padding: '12px 16px', fontSize: '14px' }}>{g.title}</td>

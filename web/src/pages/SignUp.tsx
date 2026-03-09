@@ -15,10 +15,10 @@ export default function SignUp() {
         e.preventDefault();
         try {
             // 1. Register
-            await api.post('/register', { email, password, role });
+            await api.post('/api/auth/register', { email, password, role });
 
             // 2. Login automatically after registration
-            const res = await api.post('/login', { email, password });
+            const res = await api.post('/api/auth/login', { email, password });
 
             // 3. Set user context and redirect
             // We ideally fetch user profile here via the token, or let AuthProvider do it

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -24,8 +25,12 @@ func main() {
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPass, dbHost, dbPort, dbName)
 
-	// Fallback for local dev if envs not set (or use .env loading)
+	// Fallback for local dev if envs not set
 	if dbHost == "" {
+		appEnv := os.Getenv("APP_ENV")
+		if appEnv == "production" {
+			log.Fatal("DB_HOST must be set in production")
+		}
 		dsn = "user:password@tcp(localhost:3307)/schoolcrm?parseTime=true"
 	}
 
@@ -35,11 +40,21 @@ func main() {
 	}
 	defer repo.DB.Close()
 
+	// JWT Secret from environment
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		appEnv := os.Getenv("APP_ENV")
+		if appEnv == "production" {
+			log.Fatal("JWT_SECRET must be set in production")
+		}
+		jwtSecret = "your-secret-key" // Dev fallback only
+	}
+
 	// Dependency Injection
 	userRepo := repository.NewUserRepository(repo.DB)
 	schoolRepo := repository.NewSchoolRepository(repo.DB)
-	studentRepo := repository.NewStudentRepository(repo.DB)                                     // Create studentRepo earlier
-	authService := service.NewAuthService(userRepo, schoolRepo, studentRepo, "your-secret-key") // TODO: Move secret to env
+	studentRepo := repository.NewStudentRepository(repo.DB)
+	authService := service.NewAuthService(userRepo, schoolRepo, studentRepo, jwtSecret)
 	authHandler := handler.NewAuthHandler(authService)
 	courseRepo := repository.NewCourseRepository(repo.DB)
 	notificationRepo := repository.NewNotificationRepository(repo.DB)
@@ -78,11 +93,17 @@ func main() {
 	courseContentService := service.NewCourseContentService(courseContentRepo, courseRepo)
 	courseContentHandler := handler.NewCourseContentHandler(courseContentService)
 
+	// CORS config from environment
+	allowedOrigins := []string{"http://localhost:5173", "http://localhost:3000"}
+	if envOrigins := os.Getenv("ALLOWED_ORIGINS"); envOrigins != "" {
+		allowedOrigins = strings.Split(envOrigins, ",")
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -95,15 +116,29 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Auth routes (under /api prefix)
+	r.Post("/api/auth/register", authHandler.Register)
+	r.Post("/api/auth/login", authHandler.Login)
+
+	// Legacy routes (backward compatibility)
 	r.Post("/register", authHandler.Register)
 	r.Post("/login", authHandler.Login)
 
 	r.Group(func(r chi.Router) {
 		r.Use(handler.AuthMiddleware(authService))
+
+		// Profile routes (under /api prefix)
+		r.Get("/api/me", authHandler.GetProfile)
+		r.Put("/api/me", authHandler.UpdateProfile)
+		r.Put("/api/me/avatar", authHandler.UpdateAvatar)
+		r.Delete("/api/me/avatar", authHandler.DeleteAvatar)
+
+		// Legacy profile routes (backward compatibility)
 		r.Get("/me", authHandler.GetProfile)
 		r.Put("/me", authHandler.UpdateProfile)
 		r.Put("/me/avatar", authHandler.UpdateAvatar)
 		r.Delete("/me/avatar", authHandler.DeleteAvatar)
+
 		r.Get("/api/users/search", authHandler.SearchUsers)
 		r.Get("/api/users/{id}", authHandler.GetPublicProfile)
 		r.Get("/api/schools/teachers", schoolHandler.ListTeachers)
@@ -111,10 +146,15 @@ func main() {
 		r.Get("/api/schools", schoolHandler.ListSchools)
 		r.Get("/api/schools/{id}", schoolHandler.GetSchoolDetail)
 		r.Put("/api/schools/my", schoolHandler.UpdateSchool)
+		r.Put("/api/schools/{id}", schoolHandler.UpdateSchoolByID)
+		r.Delete("/api/schools/{id}", schoolHandler.DeleteSchool)
 
 		// Course routes
 		r.Get("/api/courses", courseHandler.List)
 		r.Post("/api/courses", courseHandler.Create)
+		r.Get("/api/courses/{id}", courseHandler.GetByID)
+		r.Put("/api/courses/{id}", courseHandler.Update)
+		r.Delete("/api/courses/{id}", courseHandler.Delete)
 		r.Post("/api/courses/{id}/invite", courseHandler.Invite)
 		r.Post("/api/courses/{id}/request-access", courseHandler.RequestAccess)
 		r.Post("/api/invitations/{id}/respond", courseHandler.RespondInvitation)

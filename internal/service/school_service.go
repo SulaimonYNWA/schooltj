@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/schooltj/internal/domain"
 	"github.com/schooltj/internal/repository"
@@ -56,4 +57,50 @@ func (s *SchoolService) ListTeachers(ctx context.Context, adminUserID string) ([
 		return nil, err
 	}
 	return s.schoolRepo.ListTeachers(ctx, school.ID)
+}
+
+func (s *SchoolService) UpdateSchoolByID(ctx context.Context, userID string, role domain.Role, schoolID string, updates *domain.School) (*domain.School, error) {
+	school, err := s.schoolRepo.GetSchoolByID(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Permission check: only the school's admin or system admin
+	if role != domain.RoleAdmin && school.AdminUserID != userID {
+		return nil, errors.New("you do not have permission to edit this school")
+	}
+
+	// Apply updates
+	if updates.Name != "" {
+		school.Name = updates.Name
+	}
+	school.Description = updates.Description
+	school.Phone = updates.Phone
+	school.Email = updates.Email
+	school.Address = updates.Address
+	school.City = updates.City
+	school.Website = updates.Website
+	school.LogoURL = updates.LogoURL
+	if updates.TaxID != "" {
+		school.TaxID = updates.TaxID
+	}
+
+	if err := s.schoolRepo.UpdateSchool(ctx, school); err != nil {
+		return nil, err
+	}
+
+	return s.schoolRepo.GetSchoolByID(ctx, schoolID)
+}
+
+func (s *SchoolService) DeleteSchool(ctx context.Context, userID string, role domain.Role, schoolID string) error {
+	school, err := s.schoolRepo.GetSchoolByID(ctx, schoolID)
+	if err != nil {
+		return err
+	}
+
+	if role != domain.RoleAdmin && school.AdminUserID != userID {
+		return errors.New("you do not have permission to delete this school")
+	}
+
+	return s.schoolRepo.DeleteSchool(ctx, schoolID)
 }

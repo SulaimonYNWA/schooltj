@@ -205,7 +205,7 @@ export default function Announcements() {
                                             {a.course_title && (
                                                 <>
                                                     <span>•</span>
-                                                    <Link to={`/courses?view=${a.course_id}`} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium hover:bg-indigo-100 hover:underline transition-colors">
+                                                    <Link to={`/courses/${a.course_id}`} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium hover:bg-indigo-100 hover:underline transition-colors">
                                                         <BookOpen className="h-3 w-3" />
                                                         {a.course_title}
                                                     </Link>

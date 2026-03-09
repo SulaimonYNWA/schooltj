@@ -25,6 +25,7 @@ import Reports from './pages/Reports';
 import UserProfile from './pages/UserProfile';
 import Schools from './pages/Schools';
 import SchoolSetup from './pages/SchoolSetup';
+import NotFound from './pages/NotFound';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -68,6 +69,7 @@ function App() {
               <Route path="/reports" element={<Reports />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/users/:id" element={<UserProfile />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
         </AuthProvider>

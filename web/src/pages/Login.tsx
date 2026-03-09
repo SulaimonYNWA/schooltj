@@ -14,7 +14,7 @@ export default function Login() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await api.post('/login', { email, password });
+            const res = await api.post('/api/auth/login', { email, password });
 
             // Assuming successful login returns token. 
             // In real app we might decode token to get user info or make another call.

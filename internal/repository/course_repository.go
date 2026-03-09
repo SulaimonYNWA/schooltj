@@ -355,3 +355,100 @@ func (r *CourseRepository) UpdateCoverImage(ctx context.Context, courseID string
 	_, err := r.DB.ExecContext(ctx, query, url, courseID)
 	return err
 }
+
+func (r *CourseRepository) UpdateCourse(ctx context.Context, course *domain.Course) error {
+	var scheduleJSON interface{} = nil
+	if course.Schedule != nil {
+		if b, err := json.Marshal(course.Schedule); err == nil {
+			scheduleJSON = string(b)
+		}
+	}
+
+	query := `UPDATE courses SET title = ?, description = ?, schedule = ?, price = ?, language = ?, updated_at = NOW() WHERE id = ?`
+	result, err := r.DB.ExecContext(ctx, query, course.Title, course.Description, scheduleJSON, course.Price, course.Language, course.ID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrCourseNotFound
+	}
+	return nil
+}
+
+func (r *CourseRepository) DeleteCourse(ctx context.Context, id string) error {
+	result, err := r.DB.ExecContext(ctx, `DELETE FROM courses WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrCourseNotFound
+	}
+	return nil
+}
+
+func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id string) (*domain.Course, error) {
+	query := `
+		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, c.created_at, c.updated_at,
+		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
+			   COALESCE(u.email, '') as teacher_email,
+			   u.avatar_url,
+		       COALESCE(s.name, '') as school_name
+		FROM courses c
+		LEFT JOIN users u ON c.teacher_id = u.id
+		LEFT JOIN schools s ON c.school_id = s.id
+		WHERE c.id = ?
+	`
+	row := r.DB.QueryRowContext(ctx, query, id)
+
+	var course domain.Course
+	var schoolID sql.NullString
+	var teacherID sql.NullString
+	var scheduleJSON []byte
+	var teacherName sql.NullString
+	var teacherEmail sql.NullString
+	var avatarURL sql.NullString
+	var coverImageURL sql.NullString
+	var schoolName sql.NullString
+
+	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
+		&course.Price, &coverImageURL, &course.Language, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrCourseNotFound
+		}
+		return nil, err
+	}
+
+	if len(scheduleJSON) > 0 {
+		var sched domain.Schedule
+		if err := json.Unmarshal(scheduleJSON, &sched); err == nil {
+			course.Schedule = &sched
+		}
+	}
+
+	if schoolID.Valid {
+		course.SchoolID = &schoolID.String
+		course.SchoolName = schoolName.String
+	}
+	if teacherID.Valid {
+		course.TeacherID = &teacherID.String
+		course.TeacherName = teacherName.String
+		course.TeacherEmail = teacherEmail.String
+		if avatarURL.Valid {
+			course.TeacherAvatar = &avatarURL.String
+		}
+	}
+	if coverImageURL.Valid {
+		course.CoverImageURL = &coverImageURL.String
+	}
+
+	return &course, nil
+}

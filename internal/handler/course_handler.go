@@ -270,3 +270,74 @@ func (h *CourseHandler) CancelEnrollment(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "enrollment cancelled"}`))
 }
+
+func (h *CourseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	courseID := chi.URLParam(r, "id")
+	if courseID == "" {
+		http.Error(w, "invalid course id", http.StatusBadRequest)
+		return
+	}
+
+	course, err := h.service.GetCourseByID(r.Context(), courseID)
+	if err != nil {
+		log.Printf("[CourseHandler.GetByID] error: %v", err)
+		http.Error(w, "course not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(course)
+}
+
+type updateCourseRequest struct {
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Schedule    *domain.Schedule `json:"schedule"`
+	Price       float64          `json:"price"`
+	Language    string           `json:"language"`
+}
+
+func (h *CourseHandler) Update(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
+	courseID := chi.URLParam(r, "id")
+
+	if !ok || !okRole || courseID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req updateCourseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	course, err := h.service.UpdateCourse(r.Context(), userID, role, courseID, req.Title, req.Description, req.Schedule, req.Price, req.Language)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(course)
+}
+
+func (h *CourseHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
+	courseID := chi.URLParam(r, "id")
+
+	if !ok || !okRole || courseID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteCourse(r.Context(), userID, role, courseID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "course deleted"}`))
+}

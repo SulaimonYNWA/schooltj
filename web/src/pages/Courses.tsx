@@ -1,12 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
-import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image, Camera, UserCheck, UserX, Users } from 'lucide-react';
+import { BookOpen, User, School, Tag, Plus, Mail } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
-import imageCompression from 'browser-image-compression';
+
 
 interface Schedule {
     days: string[];
@@ -47,24 +45,7 @@ interface EnrollmentWithCourse {
     course: Course;
 }
 
-interface CurriculumTopic {
-    id: string;
-    course_id: string;
-    title: string;
-    description: string;
-    sort_order: number;
-    created_at: string;
-}
 
-interface CourseMaterial {
-    id: string;
-    course_id: string;
-    file_name: string;
-    file_size: number;
-    content_type: string;
-    uploaded_by: string;
-    created_at: string;
-}
 
 export default function CourseList() {
     const { user } = useAuth();

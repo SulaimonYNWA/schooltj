@@ -5,10 +5,11 @@ import {
     Users, GraduationCap, DollarSign, BookOpen, Clock, Star, Eye,
     TrendingUp, Calendar, Megaphone, UserPlus, BarChart3, Bell, ClipboardList
 } from 'lucide-react';
+import { timeAgo, formatTJS } from '../lib/utils';
 import CourseInvitationModal from '../components/CourseInvitationModal';
 import RatingModal from '../components/RatingModal';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 interface EnrollmentWithCourse {
     enrollment: {
@@ -170,7 +171,7 @@ function AdminDashboard({ user }: { user: any }) {
     const statCards = [
         { name: 'Total Students', value: stats?.total_students ?? 0, icon: Users, color: 'from-blue-500 to-blue-600', textColor: 'text-blue-600' },
         { name: 'Active Courses', value: stats?.total_courses ?? 0, icon: BookOpen, color: 'from-emerald-500 to-emerald-600', textColor: 'text-emerald-600' },
-        { name: 'Revenue', value: `$${(stats?.total_revenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-600' },
+        { name: 'Revenue', value: formatTJS(stats?.total_revenue ?? 0), icon: DollarSign, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-600' },
         { name: 'Teachers', value: stats?.total_teachers ?? 0, icon: GraduationCap, color: 'from-purple-500 to-purple-600', textColor: 'text-purple-600' },
     ];
 
@@ -181,16 +182,7 @@ function AdminDashboard({ user }: { user: any }) {
         { name: 'Pending Requests', value: stats?.pending_requests ?? 0, icon: Clock },
     ];
 
-    const timeAgo = (dateStr: string) => {
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const minutes = Math.floor(diff / 60000);
-        if (minutes < 1) return 'just now';
-        if (minutes < 60) return `${minutes}m ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ago`;
-        const days = Math.floor(hours / 24);
-        return `${days}d ago`;
-    };
+    // timeAgo imported from lib/utils
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -341,23 +333,14 @@ function StudentDashboard({
 
     const { data: assignments } = useQuery<any[]>({
         queryKey: ['assignments'],
-        queryFn: async () => { const res = await api.get('/api/assignments'); return res.data; },
+        queryFn: async () => { const res = await api.get('/api/my-assignments'); return res.data; },
     });
 
     const overallAttendance = attendanceSummary?.length
         ? Math.round(attendanceSummary.reduce((s: number, a: any) => s + a.percentage, 0) / attendanceSummary.length)
         : 0;
 
-    const timeAgo = (dateStr: string) => {
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const minutes = Math.floor(diff / 60000);
-        if (minutes < 1) return 'just now';
-        if (minutes < 60) return `${minutes}m ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ago`;
-        const days = Math.floor(hours / 24);
-        return `${days}d ago`;
-    };
+    // timeAgo imported from lib/utils
 
     const upcomingAssignments = (assignments || [])
         .filter((a: any) => a.due_date && new Date(a.due_date) >= new Date())
@@ -481,7 +464,7 @@ function StudentDashboard({
                                     <div key={a.id} className="px-6 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between">
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
-                                            <p className="text-xs text-gray-500"><Link to={`/courses?view=${a.course_id}`} className="hover:text-indigo-600 hover:underline">{a.course_title}</Link></p>
+                                            <p className="text-xs text-gray-500"><Link to={`/courses/${a.course_id}`} className="hover:text-indigo-600 hover:underline">{a.course_title}</Link></p>
                                         </div>
                                         <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${urgencyColor}`}>
                                             {daysUntil(a.due_date)}
@@ -511,7 +494,7 @@ function StudentDashboard({
                                     {invitations.map((item: EnrollmentWithCourse) => (
                                         <div key={item.enrollment.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="text-base font-semibold text-indigo-600"><Link to={`/courses?view=${item.course.id}`} className="hover:underline">{item.course.title}</Link></h3>
+                                                <h3 className="text-base font-semibold text-indigo-600"><Link to={`/courses/${item.course.id}`} className="hover:underline">{item.course.title}</Link></h3>
                                                 <p className="text-sm text-gray-500 line-clamp-1 mt-0.5">{item.course.description}</p>
                                                 {item.course.teacher_name && (
                                                     <p className="text-xs text-gray-400 mt-1">Teacher: {item.course.teacher_name}</p>
@@ -546,7 +529,7 @@ function StudentDashboard({
                                 {activeCourses.map((item: EnrollmentWithCourse) => (
                                     <div key={item.enrollment.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
                                         <div className="px-5 py-4 flex-1">
-                                            <h3 className="text-base font-bold text-gray-900 truncate"><Link to={`/courses?view=${item.course.id}`} className="hover:text-indigo-600 hover:underline">{item.course.title}</Link></h3>
+                                            <h3 className="text-base font-bold text-gray-900 truncate"><Link to={`/courses/${item.course.id}`} className="hover:text-indigo-600 hover:underline">{item.course.title}</Link></h3>
                                             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{item.course.description}</p>
                                             {item.course.teacher_name && (
                                                 <p className="mt-2 text-sm text-gray-600">

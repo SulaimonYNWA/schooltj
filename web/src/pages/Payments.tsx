@@ -304,7 +304,7 @@ function AdminPaymentsView() {
                                         <td className="px-6 py-3.5 font-medium text-gray-900">
                                             <Link to={`/users/${p.student_user_id}`} className="hover:text-emerald-600 hover:underline">{p.student_name}</Link>
                                         </td>
-                                        <td className="px-6 py-3.5 text-gray-600"><Link to={`/courses?view=${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></td>
+                                        <td className="px-6 py-3.5 text-gray-600"><Link to={`/courses/${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></td>
                                         <td className="px-6 py-3.5 text-right font-semibold text-emerald-600">
                                             ${p.amount.toFixed(2)}
                                         </td>
@@ -388,7 +388,7 @@ function StudentPaymentsView() {
                                 <div key={p.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                                     <div className="flex items-center justify-between">
                                         <div className="flex-1">
-                                            <p className="font-medium text-gray-900"><Link to={`/courses?view=${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></p>
+                                            <p className="font-medium text-gray-900"><Link to={`/courses/${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></p>
                                             <div className="flex items-center gap-3 mt-1 flex-wrap">
                                                 <span className="text-xs text-gray-400">
                                                     {new Date(p.paid_at).toLocaleDateString()}

@@ -242,7 +242,7 @@ export default function SchoolDetail() {
                     {filteredCourses.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {filteredCourses.map(c => (
-                                <Link key={c.id} to={`/courses?view=${c.id}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-200 transition-all group">
+                                <Link key={c.id} to={`/courses/${c.id}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-200 transition-all group">
                                     {c.cover_image_url && (
                                         <img src={c.cover_image_url} alt="" className="w-full h-32 object-cover" />
                                     )}

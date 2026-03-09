@@ -428,3 +428,82 @@ func (s *CourseService) CancelEnrollment(ctx context.Context, studentID, enrollm
 func (s *CourseService) UpdateCoverImage(ctx context.Context, courseID string, url *string) error {
 	return s.courseRepo.UpdateCoverImage(ctx, courseID, url)
 }
+
+func (s *CourseService) GetCourseByID(ctx context.Context, id string) (*domain.Course, error) {
+	return s.courseRepo.GetCourseByIDWithDetails(ctx, id)
+}
+
+func (s *CourseService) UpdateCourse(ctx context.Context, userID string, role domain.Role, courseID, title, description string, schedule *domain.Schedule, price float64, language string) (*domain.Course, error) {
+	// Get existing course to verify ownership
+	course, err := s.courseRepo.GetCourseByID(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ownership check
+	switch role {
+	case domain.RoleTeacher:
+		if course.TeacherID == nil || *course.TeacherID != userID {
+			return nil, errors.New("you do not own this course")
+		}
+	case domain.RoleSchoolAdmin:
+		if course.SchoolID == nil {
+			return nil, errors.New("this course does not belong to a school")
+		}
+		school, err := s.schoolRepo.GetSchoolByAdminID(ctx, userID)
+		if err != nil || school.ID != *course.SchoolID {
+			return nil, errors.New("you do not own this course's school")
+		}
+	case domain.RoleAdmin:
+		// Admin can edit any course
+	default:
+		return nil, errors.New("insufficient permissions")
+	}
+
+	// Apply updates
+	if title != "" {
+		course.Title = title
+	}
+	course.Description = description
+	if schedule != nil {
+		course.Schedule = schedule
+	}
+	course.Price = price
+	if language != "" {
+		course.Language = language
+	}
+
+	if err := s.courseRepo.UpdateCourse(ctx, course); err != nil {
+		return nil, err
+	}
+
+	return s.courseRepo.GetCourseByIDWithDetails(ctx, courseID)
+}
+
+func (s *CourseService) DeleteCourse(ctx context.Context, userID string, role domain.Role, courseID string) error {
+	course, err := s.courseRepo.GetCourseByID(ctx, courseID)
+	if err != nil {
+		return err
+	}
+
+	switch role {
+	case domain.RoleTeacher:
+		if course.TeacherID == nil || *course.TeacherID != userID {
+			return errors.New("you do not own this course")
+		}
+	case domain.RoleSchoolAdmin:
+		if course.SchoolID == nil {
+			return errors.New("this course does not belong to a school")
+		}
+		school, err := s.schoolRepo.GetSchoolByAdminID(ctx, userID)
+		if err != nil || school.ID != *course.SchoolID {
+			return errors.New("you do not own this course's school")
+		}
+	case domain.RoleAdmin:
+		// Admin can delete any course
+	default:
+		return errors.New("insufficient permissions")
+	}
+
+	return s.courseRepo.DeleteCourse(ctx, courseID)
+}

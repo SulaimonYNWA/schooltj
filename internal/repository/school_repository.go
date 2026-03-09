@@ -136,3 +136,18 @@ func (r *SchoolRepository) UpdateSchool(ctx context.Context, school *domain.Scho
 	_, err := r.DB.ExecContext(ctx, query, school.Name, school.Description, school.Phone, school.Email, school.Address, school.City, school.Website, school.LogoURL, school.TaxID, school.ID)
 	return err
 }
+
+func (r *SchoolRepository) DeleteSchool(ctx context.Context, id string) error {
+	result, err := r.DB.ExecContext(ctx, `DELETE FROM schools WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errors.New("school not found")
+	}
+	return nil
+}

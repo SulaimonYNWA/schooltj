@@ -20,7 +20,7 @@ export default function Reports() {
         { label: 'Total Students', value: stats?.total_students ?? 0, icon: Users, color: '#3b82f6', bg: '#dbeafe' },
         { label: 'Total Teachers', value: stats?.total_teachers ?? 0, icon: Users, color: '#7c3aed', bg: '#ede9fe' },
         { label: 'Active Courses', value: stats?.total_courses ?? 0, icon: BookOpen, color: '#059669', bg: '#dcfce7' },
-        { label: 'Total Revenue', value: `$${(stats?.total_revenue ?? 0).toLocaleString()}`, icon: DollarSign, color: '#d97706', bg: '#fef3c7' },
+        { label: 'Total Revenue', value: `TJS ${(stats?.total_revenue ?? 0).toLocaleString()}`, icon: DollarSign, color: '#d97706', bg: '#fef3c7' },
         { label: 'Active Enrollments', value: stats?.active_enrollments ?? 0, icon: TrendingUp, color: '#dc2626', bg: '#fee2e2' },
     ];
 

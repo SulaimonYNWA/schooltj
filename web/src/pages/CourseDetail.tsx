@@ -109,10 +109,7 @@ export default function CourseDetail() {
 
     const { data: course, isLoading } = useQuery<Course>({
         queryKey: ['course', id],
-        queryFn: () => api.get(`/api/courses`).then(r => {
-            const courses = r.data as Course[];
-            return courses.find(c => c.id === id)!;
-        }),
+        queryFn: () => api.get(`/api/courses/${id}`).then(r => r.data),
         enabled: !!id,
     });
 

@@ -164,3 +164,74 @@ func (h *SchoolHandler) UpdateSchool(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(school)
 }
+
+// UpdateSchoolByID handles PUT /api/schools/{id}
+func (h *SchoolHandler) UpdateSchoolByID(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
+	schoolID := chi.URLParam(r, "id")
+
+	if !ok || !okRole || schoolID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Phone       string `json:"phone"`
+		Email       string `json:"email"`
+		Address     string `json:"address"`
+		City        string `json:"city"`
+		Website     string `json:"website"`
+		LogoURL     string `json:"logo_url"`
+		TaxID       string `json:"tax_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	updates := &domain.School{
+		Name:        req.Name,
+		Description: req.Description,
+		Phone:       req.Phone,
+		Email:       req.Email,
+		Address:     req.Address,
+		City:        req.City,
+		Website:     req.Website,
+		LogoURL:     req.LogoURL,
+		TaxID:       req.TaxID,
+	}
+
+	school, err := h.service.UpdateSchoolByID(r.Context(), userID, role, schoolID, updates)
+	if err != nil {
+		log.Printf("[SchoolHandler.UpdateSchoolByID] error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(school)
+}
+
+// DeleteSchool handles DELETE /api/schools/{id}
+func (h *SchoolHandler) DeleteSchool(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
+	schoolID := chi.URLParam(r, "id")
+
+	if !ok || !okRole || schoolID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteSchool(r.Context(), userID, role, schoolID); err != nil {
+		log.Printf("[SchoolHandler.DeleteSchool] error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "school deleted"}`))
+}

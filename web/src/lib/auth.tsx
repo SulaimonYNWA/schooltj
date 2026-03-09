@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
             try {
                 // Assuming 'api' is an imported axios instance or similar
-                const res = await api.get('/me');
+                const res = await api.get('/api/me');
                 setUser(res.data);
             } catch (err) {
                 console.error("Failed to fetch user:", err);
