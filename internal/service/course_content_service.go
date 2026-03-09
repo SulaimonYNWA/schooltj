@@ -87,6 +87,16 @@ func (s *CourseContentService) ListTopics(ctx context.Context, userID string, ro
 	if topics == nil {
 		topics = []domain.CurriculumTopic{}
 	}
+	// Students only see visible topics
+	if role == domain.RoleStudent {
+		visible := make([]domain.CurriculumTopic, 0, len(topics))
+		for _, t := range topics {
+			if t.Visible {
+				visible = append(visible, t)
+			}
+		}
+		return visible, nil
+	}
 	return topics, nil
 }
 

@@ -22,16 +22,17 @@ func (r *CourseContentRepository) CreateTopic(ctx context.Context, topic *domain
 	if topic.ID == "" {
 		topic.ID = uuid.New().String()
 	}
+	topic.Visible = true
 	_, err := r.DB.ExecContext(ctx,
-		`INSERT INTO course_curriculum_topics (id, course_id, title, description, sort_order) VALUES (?, ?, ?, ?, ?)`,
-		topic.ID, topic.CourseID, topic.Title, topic.Description, topic.SortOrder,
+		`INSERT INTO course_curriculum_topics (id, course_id, title, description, sort_order, visible) VALUES (?, ?, ?, ?, ?, ?)`,
+		topic.ID, topic.CourseID, topic.Title, topic.Description, topic.SortOrder, topic.Visible,
 	)
 	return err
 }
 
 func (r *CourseContentRepository) ListTopics(ctx context.Context, courseID string) ([]domain.CurriculumTopic, error) {
 	rows, err := r.DB.QueryContext(ctx,
-		`SELECT id, course_id, title, description, sort_order, created_at FROM course_curriculum_topics WHERE course_id = ? ORDER BY sort_order ASC, created_at ASC`,
+		`SELECT id, course_id, title, description, sort_order, visible, created_at FROM course_curriculum_topics WHERE course_id = ? ORDER BY sort_order ASC, created_at ASC`,
 		courseID,
 	)
 	if err != nil {
@@ -42,7 +43,7 @@ func (r *CourseContentRepository) ListTopics(ctx context.Context, courseID strin
 	var topics []domain.CurriculumTopic
 	for rows.Next() {
 		var t domain.CurriculumTopic
-		if err := rows.Scan(&t.ID, &t.CourseID, &t.Title, &t.Description, &t.SortOrder, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.CourseID, &t.Title, &t.Description, &t.SortOrder, &t.Visible, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		topics = append(topics, t)
@@ -52,8 +53,8 @@ func (r *CourseContentRepository) ListTopics(ctx context.Context, courseID strin
 
 func (r *CourseContentRepository) UpdateTopic(ctx context.Context, topic *domain.CurriculumTopic) error {
 	_, err := r.DB.ExecContext(ctx,
-		`UPDATE course_curriculum_topics SET title = ?, description = ?, sort_order = ? WHERE id = ?`,
-		topic.Title, topic.Description, topic.SortOrder, topic.ID,
+		`UPDATE course_curriculum_topics SET title = ?, description = ?, sort_order = ?, visible = ? WHERE id = ?`,
+		topic.Title, topic.Description, topic.SortOrder, topic.Visible, topic.ID,
 	)
 	return err
 }

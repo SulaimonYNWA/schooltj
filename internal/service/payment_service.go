@@ -23,6 +23,7 @@ type RecordPaymentInput struct {
 	Amount        float64 `json:"amount"`
 	Method        string  `json:"method"`
 	Note          string  `json:"note"`
+	ReceiptURL    string  `json:"receipt_url"`
 	PaidAt        string  `json:"paid_at"` // ISO format
 }
 
@@ -46,6 +47,7 @@ func (s *PaymentService) RecordPayment(ctx context.Context, recordedBy string, r
 		Amount:        input.Amount,
 		Method:        input.Method,
 		Note:          input.Note,
+		ReceiptURL:    input.ReceiptURL,
 		RecordedBy:    recordedBy,
 		PaidAt:        paidAt,
 	}
@@ -56,12 +58,21 @@ func (s *PaymentService) RecordPayment(ctx context.Context, recordedBy string, r
 	return p, nil
 }
 
-// ListPayments returns payments filtered by course or all (admin).
-func (s *PaymentService) ListPayments(ctx context.Context, role domain.Role, courseID string) ([]domain.Payment, error) {
+// ListPayments returns payments scoped to the user's role.
+func (s *PaymentService) ListPayments(ctx context.Context, userID string, role domain.Role, courseID string) ([]domain.Payment, error) {
 	if courseID != "" {
 		return s.repo.ListByCourse(ctx, courseID)
 	}
-	return s.repo.ListAll(ctx)
+	switch role {
+	case domain.RoleTeacher:
+		return s.repo.ListByTeacher(ctx, userID)
+	case domain.RoleSchoolAdmin:
+		return s.repo.ListBySchoolAdmin(ctx, userID)
+	case domain.RoleAdmin:
+		return s.repo.ListAll(ctx)
+	default:
+		return s.repo.ListByStudent(ctx, userID)
+	}
 }
 
 // MyPayments returns a student's own payments.

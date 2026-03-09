@@ -1,4 +1,4 @@
-import { Home, User, BookOpen, LogOut, Users, Calendar, DollarSign, Megaphone, Clock, Settings, Award, Bell, ClipboardList, MessageSquare, BarChart3 } from 'lucide-react';
+import { Home, User, BookOpen, LogOut, Users, Calendar, DollarSign, Megaphone, Clock, Settings, Award, Bell, ClipboardList, MessageSquare, BarChart3, Building2 } from 'lucide-react';
 import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -31,6 +31,12 @@ export default function Sidebar() {
             name: 'Courses',
             href: '/courses',
             icon: BookOpen,
+            visible: true
+        },
+        {
+            name: 'Schools',
+            href: '/schools',
+            icon: Building2,
             visible: true
         },
         {

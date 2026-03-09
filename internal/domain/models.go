@@ -30,10 +30,14 @@ type School struct {
 	ID          string    `json:"id"`
 	AdminUserID string    `json:"admin_user_id"`
 	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
 	TaxID       string    `json:"tax_id,omitempty"`
 	Phone       string    `json:"phone,omitempty"`
+	Email       string    `json:"email,omitempty"`
 	Address     string    `json:"address,omitempty"`
 	City        string    `json:"city,omitempty"`
+	Website     string    `json:"website,omitempty"`
+	LogoURL     string    `json:"logo_url,omitempty"`
 	IsVerified  bool      `json:"is_verified"`
 	RatingAvg   float64   `json:"rating_avg"`
 	RatingCount int       `json:"rating_count"`
@@ -82,6 +86,7 @@ type Course struct {
 	TeacherEmail  string    `json:"teacher_email,omitempty"`
 	TeacherAvatar *string   `json:"teacher_avatar,omitempty"` // populated on read
 	CoverImageURL *string   `json:"cover_image_url,omitempty"`
+	Language      string    `json:"language,omitempty"`
 	Price         float64   `json:"price"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -149,18 +154,20 @@ type AttendanceSummary struct {
 }
 
 type Payment struct {
-	ID            string    `json:"id"`
-	StudentUserID string    `json:"student_user_id"`
-	StudentName   string    `json:"student_name,omitempty"`
-	StudentAvatar *string   `json:"student_avatar,omitempty"` // populated on read
-	CourseID      string    `json:"course_id"`
-	CourseTitle   string    `json:"course_title,omitempty"`
-	Amount        float64   `json:"amount"`
-	Method        string    `json:"method"` // cash, card, transfer
-	Note          string    `json:"note,omitempty"`
-	RecordedBy    string    `json:"recorded_by"`
-	PaidAt        time.Time `json:"paid_at"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID             string    `json:"id"`
+	StudentUserID  string    `json:"student_user_id"`
+	StudentName    string    `json:"student_name,omitempty"`
+	StudentAvatar  *string   `json:"student_avatar,omitempty"` // populated on read
+	CourseID       string    `json:"course_id"`
+	CourseTitle    string    `json:"course_title,omitempty"`
+	Amount         float64   `json:"amount"`
+	Method         string    `json:"method"` // cash, card, transfer
+	Note           string    `json:"note,omitempty"`
+	ReceiptURL     string    `json:"receipt_url,omitempty"`
+	RecordedBy     string    `json:"recorded_by"`
+	RecordedByName string    `json:"recorded_by_name,omitempty"`
+	PaidAt         time.Time `json:"paid_at"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type Announcement struct {
@@ -259,6 +266,7 @@ type CurriculumTopic struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	SortOrder   int       `json:"sort_order"`
+	Visible     bool      `json:"visible"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 

@@ -23,6 +23,7 @@ type createCourseRequest struct {
 	Description string           `json:"description"`
 	Schedule    *domain.Schedule `json:"schedule"`
 	Price       float64          `json:"price"`
+	Language    string           `json:"language"`
 	TeacherID   *string          `json:"teacher_id,omitempty"` // Required for SchoolAdmin
 }
 
@@ -41,7 +42,7 @@ func (h *CourseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	course, err := h.service.CreateCourse(r.Context(), userID, role, req.Title, req.Description, req.Schedule, req.Price, req.TeacherID)
+	course, err := h.service.CreateCourse(r.Context(), userID, role, req.Title, req.Description, req.Schedule, req.Price, req.Language, req.TeacherID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

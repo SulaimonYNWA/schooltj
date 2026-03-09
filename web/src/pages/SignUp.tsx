@@ -25,7 +25,7 @@ export default function SignUp() {
             // For simplicity, we just set the token and user object derived from input 
             // (The AuthProvider useEffect will verify/fetch real profile anyway)
             login(res.data.token, { id: '0', email, name: email.split('@')[0], role });
-            navigate('/');
+            navigate(role === 'school_admin' ? '/schools/setup' : '/');
         } catch (err: any) {
             if (err.response?.status === 409) {
                 setError('Email already exists');

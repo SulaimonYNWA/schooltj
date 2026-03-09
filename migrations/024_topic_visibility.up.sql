@@ -1,0 +1,1 @@
+ALTER TABLE course_curriculum_topics ADD COLUMN visible BOOLEAN NOT NULL DEFAULT TRUE;

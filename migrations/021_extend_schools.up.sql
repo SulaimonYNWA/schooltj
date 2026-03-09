@@ -1,0 +1,4 @@
+ALTER TABLE schools ADD COLUMN description TEXT AFTER name;
+ALTER TABLE schools ADD COLUMN website VARCHAR(255) AFTER city;
+ALTER TABLE schools ADD COLUMN logo_url VARCHAR(500) AFTER website;
+ALTER TABLE schools ADD COLUMN email VARCHAR(255) AFTER logo_url;

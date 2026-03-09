@@ -14,10 +14,11 @@ import (
 type SchoolHandler struct {
 	service    *service.SchoolService
 	schoolRepo *repository.SchoolRepository
+	courseRepo *repository.CourseRepository
 }
 
-func NewSchoolHandler(s *service.SchoolService, sr *repository.SchoolRepository) *SchoolHandler {
-	return &SchoolHandler{service: s, schoolRepo: sr}
+func NewSchoolHandler(s *service.SchoolService, sr *repository.SchoolRepository, cr *repository.CourseRepository) *SchoolHandler {
+	return &SchoolHandler{service: s, schoolRepo: sr, courseRepo: cr}
 }
 
 type addTeacherRequest struct {
@@ -95,11 +96,71 @@ func (h *SchoolHandler) GetSchoolDetail(w http.ResponseWriter, r *http.Request) 
 		teachers = []domain.User{}
 	}
 
+	courses, _ := h.courseRepo.ListCourses(r.Context(), repository.CourseFilter{SchoolID: &id})
+	if courses == nil {
+		courses = []*domain.Course{}
+	}
+
 	type schoolDetail struct {
 		*domain.School
-		Teachers []domain.User `json:"teachers"`
+		Teachers []domain.User    `json:"teachers"`
+		Courses  []*domain.Course `json:"courses"`
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(schoolDetail{School: school, Teachers: teachers})
+	json.NewEncoder(w).Encode(schoolDetail{School: school, Teachers: teachers, Courses: courses})
+}
+
+// UpdateSchool handles PUT /api/schools/my
+func (h *SchoolHandler) UpdateSchool(w http.ResponseWriter, r *http.Request) {
+	adminID, ok := r.Context().Value(UserContextKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	school, err := h.schoolRepo.GetSchoolByAdminID(r.Context(), adminID)
+	if err != nil {
+		http.Error(w, "school not found", http.StatusNotFound)
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Phone       string `json:"phone"`
+		Email       string `json:"email"`
+		Address     string `json:"address"`
+		City        string `json:"city"`
+		Website     string `json:"website"`
+		LogoURL     string `json:"logo_url"`
+		TaxID       string `json:"tax_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name != "" {
+		school.Name = req.Name
+	}
+	school.Description = req.Description
+	school.Phone = req.Phone
+	school.Email = req.Email
+	school.Address = req.Address
+	school.City = req.City
+	school.Website = req.Website
+	school.LogoURL = req.LogoURL
+	if req.TaxID != "" {
+		school.TaxID = req.TaxID
+	}
+
+	if err := h.schoolRepo.UpdateSchool(r.Context(), school); err != nil {
+		log.Printf("[SchoolHandler.UpdateSchool] error: %v", err)
+		http.Error(w, "failed to update school", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(school)
 }

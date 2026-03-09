@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
 import { BookOpen, User, School, Tag, Plus, Mail, X, Calendar, Clock, DollarSign, FileText, Upload, Download, Trash2, Edit2, Check, Image, Camera, UserCheck, UserX, Users } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
@@ -22,6 +22,7 @@ interface Course {
     description: string;
     schedule?: Schedule;
     price: number;
+    language?: string;
     teacher_id?: string;
     teacher_name?: string;
     teacher_email?: string;
@@ -71,9 +72,10 @@ export default function CourseList() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-    const [viewedCourse, setViewedCourse] = useState<Course | null>(null);
+
     const [viewMode, setViewMode] = useState<'all' | 'my'>('all');
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
 
     const { data: courses, isLoading, error } = useQuery<Course[]>({
         queryKey: ['courses'],
@@ -93,17 +95,14 @@ export default function CourseList() {
         enabled: !!user && user.role === 'student',
     });
 
-    // Auto-open modal when ?view=courseId is in URL
+    // Auto-redirect when ?view=courseId is in URL
     useEffect(() => {
         const viewCourseId = searchParams.get('view');
-        if (viewCourseId && courses) {
-            const found = courses.find(c => c.id === viewCourseId);
-            if (found) {
-                setViewedCourse(found);
-                setSearchParams({}, { replace: true });
-            }
+        if (viewCourseId) {
+            setSearchParams({}, { replace: true });
+            navigate(`/courses/${viewCourseId}`);
         }
-    }, [courses, searchParams, setSearchParams]);
+    }, [searchParams, setSearchParams, navigate]);
 
     const isTeacherOrSchool = user?.role === 'teacher' || user?.role === 'school_admin';
     const isStudent = user?.role === 'student';
@@ -117,36 +116,7 @@ export default function CourseList() {
 
     const displayedCourses = viewMode === 'all' ? courses : myEnrollments?.map(e => e.course);
 
-    const handleRequestAccess = async (courseId: string) => {
-        try {
-            await api.post(`/api/courses/${courseId}/request-access`);
-            alert('Access requested successfully!');
-            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
-        } catch (err: any) {
-            console.error(err);
-            alert('Failed to request access: ' + (err.response?.data || err.message));
-        }
-    };
 
-    const handleRespondInvitation = async (enrollmentId: string, accept: boolean) => {
-        try {
-            await api.post(`/api/invitations/${enrollmentId}/respond`, { accept });
-            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
-        } catch (err: any) {
-            console.error(err);
-            alert('Failed to respond to invitation: ' + (err.response?.data || err.message));
-        }
-    };
-
-    const handleCancelRequest = async (enrollmentId: string) => {
-        try {
-            await api.delete(`/api/enrollments/${enrollmentId}/cancel`);
-            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
-        } catch (err: any) {
-            console.error(err);
-            alert('Failed to cancel request: ' + (err.response?.data || err.message));
-        }
-    };
 
     const formatSchedule = (s?: Schedule) => {
         if (!s) return null;
@@ -227,7 +197,7 @@ export default function CourseList() {
                         return (
                             <div
                                 key={course.id}
-                                onClick={() => setViewedCourse(course)}
+                                onClick={() => navigate(`/courses/${course.id}`)}
                                 className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-indigo-100 cursor-pointer"
                             >
                                 <div className="h-48 bg-gray-200 group-hover:scale-105 transition-transform duration-300 relative overflow-hidden">
@@ -289,6 +259,9 @@ export default function CourseList() {
                                     <div className="flex items-center font-bold text-gray-900">
                                         <Tag className="mr-1.5 h-4 w-4 text-indigo-500" />
                                         TJS {course.price.toLocaleString()}
+                                        {course.language && (
+                                            <span className="ml-3 px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">{course.language}</span>
+                                        )}
                                     </div>
                                     <div className="flex gap-2">
                                         {isTeacherOrSchool && (
@@ -307,7 +280,7 @@ export default function CourseList() {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setViewedCourse(course);
+                                                navigate(`/courses/${course.id}`);
                                             }}
                                             className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
                                         >
@@ -321,23 +294,7 @@ export default function CourseList() {
                 </div>
             )}
 
-            {/* Course Details Modal */}
-            {viewedCourse && (
-                <CourseDetailsModal
-                    course={viewedCourse}
-                    onClose={() => setViewedCourse(null)}
-                    onInvite={() => {
-                        setSelectedCourseId(viewedCourse.id);
-                        setIsInviteModalOpen(true);
-                    }}
-                    canInvite={isTeacherOrSchool}
-                    isStudent={isStudent}
-                    enrollment={myEnrollments?.find(e => e.course.id === viewedCourse.id)?.enrollment}
-                    onRequestAccess={() => handleRequestAccess(viewedCourse.id)}
-                    onRespond={handleRespondInvitation}
-                    onCancelRequest={handleCancelRequest}
-                />
-            )}
+
 
             {isCreateModalOpen && (
                 <CreateCourseModal
@@ -366,662 +323,6 @@ export default function CourseList() {
     );
 }
 
-function CourseDetailsModal({
-    course, onClose, onInvite, canInvite, isStudent, enrollment, onRequestAccess, onRespond, onCancelRequest
-}: {
-    course: Course,
-    onClose: () => void,
-    onInvite: () => void,
-    canInvite: boolean,
-    isStudent?: boolean,
-    enrollment?: Enrollment,
-    onRequestAccess?: () => void,
-    onRespond?: (enrollmentId: string, accept: boolean) => void,
-    onCancelRequest?: (enrollmentId: string) => void,
-}) {
-    const { user } = useAuth();
-    const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<'details' | 'curriculum' | 'materials' | 'students'>('details');
-    const isTeacher = user?.role === 'teacher' || user?.role === 'school_admin';
-    const isEnrolled = enrollment?.status === 'active';
-    const canViewContent = isTeacher || isEnrolled;
-
-    // ── Curriculum state ──
-    const [newTopicTitle, setNewTopicTitle] = useState('');
-    const [newTopicDesc, setNewTopicDesc] = useState('');
-    const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
-    const [editTitle, setEditTitle] = useState('');
-    const [editDesc, setEditDesc] = useState('');
-
-    const { data: topics, isLoading: topicsLoading } = useQuery<CurriculumTopic[]>({
-        queryKey: ['curriculum', course.id],
-        queryFn: async () => { const res = await api.get(`/api/courses/${course.id}/curriculum`); return res.data; },
-        enabled: activeTab === 'curriculum' && canViewContent,
-    });
-
-    const addTopicMutation = useMutation({
-        mutationFn: async () => {
-            return api.post(`/api/courses/${course.id}/curriculum`, {
-                title: newTopicTitle, description: newTopicDesc, sort_order: (topics?.length ?? 0),
-            });
-        },
-        onSuccess: () => { setNewTopicTitle(''); setNewTopicDesc(''); queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }); },
-    });
-
-    const updateTopicMutation = useMutation({
-        mutationFn: async ({ id, sort_order }: { id: string; sort_order: number }) => {
-            return api.put(`/api/courses/${course.id}/curriculum/${id}`, { title: editTitle, description: editDesc, sort_order });
-        },
-        onSuccess: () => { setEditingTopicId(null); queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }); },
-    });
-
-    const deleteTopicMutation = useMutation({
-        mutationFn: async (id: string) => api.delete(`/api/courses/${course.id}/curriculum/${id}`),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['curriculum', course.id] }),
-    });
-
-    // ── Enrollments (students tab) ──
-    const { data: courseEnrollments, isLoading: enrollmentsLoading } = useQuery<Enrollment[]>({
-        queryKey: ['course-enrollments', course.id],
-        queryFn: async () => { const res = await api.get(`/api/courses/${course.id}/enrollments`); return res.data; },
-        enabled: activeTab === 'students' && isTeacher,
-    });
-
-    const approveEnrollmentMutation = useMutation({
-        mutationFn: async ({ enrollmentId, approve }: { enrollmentId: string; approve: boolean }) => {
-            return api.post(`/api/enrollments/${enrollmentId}/approve`, { approve });
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['course-enrollments', course.id] });
-            queryClient.invalidateQueries({ queryKey: ['courses'] });
-        },
-    });
-
-    // ── Materials state ──
-    const coverInputRef = useRef<HTMLInputElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [uploading, setUploading] = useState(false);
-    const [uploadingCover, setUploadingCover] = useState(false);
-
-    const updateCoverMutation = useMutation({
-        mutationFn: async (url: string) => {
-            return api.put(`/api/courses/${course.id}/cover-image`, { cover_image_url: url });
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['courses'] });
-            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
-        },
-    });
-
-    const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploadingCover(true);
-        try {
-            const options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1200,
-                useWebWorker: true,
-                fileType: 'image/webp' as const,
-            };
-            const compressedFile = await imageCompression(file, options);
-            const filename = `course-covers/${course.id}-${Date.now()}.webp`;
-            const storageRef = ref(storage, filename);
-            const uploadTask = uploadBytesResumable(storageRef, compressedFile);
-
-            uploadTask.on('state_changed', null, (error) => {
-                console.error('Cover upload error:', error);
-                setUploadingCover(false);
-            }, async () => {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                updateCoverMutation.mutate(downloadURL);
-                setUploadingCover(false);
-            });
-        } catch (error) {
-            console.error('Cover upload error:', error);
-            setUploadingCover(false);
-        } finally {
-            if (coverInputRef.current) coverInputRef.current.value = '';
-        }
-    };
-
-    const { data: materials, isLoading: materialsLoading } = useQuery<CourseMaterial[]>({
-        queryKey: ['materials', course.id],
-        queryFn: async () => { const res = await api.get(`/api/courses/${course.id}/materials`); return res.data; },
-        enabled: activeTab === 'materials' && canViewContent,
-    });
-
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            await api.post(`/api/courses/${course.id}/materials`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            queryClient.invalidateQueries({ queryKey: ['materials', course.id] });
-        } catch (err: any) {
-            alert('Upload failed: ' + (err.response?.data || err.message));
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
-
-    const deleteMaterialMutation = useMutation({
-        mutationFn: async (id: string) => api.delete(`/api/materials/${id}`),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials', course.id] }),
-    });
-
-    const handleDownload = async (m: CourseMaterial) => {
-        try {
-            const res = await api.get(`/api/materials/${m.id}/download`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const a = document.createElement('a');
-            a.href = url; a.download = m.file_name; document.body.appendChild(a); a.click();
-            window.URL.revokeObjectURL(url); document.body.removeChild(a);
-        } catch (err: any) {
-            alert('Download failed: ' + (err.response?.data || err.message));
-        }
-    };
-
-    const formatFileSize = (bytes: number) => {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    };
-
-    const getFileIcon = (ct: string) => {
-        if (ct === 'application/pdf') return <FileText className="h-5 w-5 text-red-500" />;
-        if (ct.startsWith('image/')) return <Image className="h-5 w-5 text-blue-500" />;
-        return <FileText className="h-5 w-5 text-gray-500" />;
-    };
-
-    const tabs = [
-        { key: 'details' as const, label: 'Details' },
-        { key: 'curriculum' as const, label: 'Curriculum' },
-        { key: 'materials' as const, label: 'Materials' },
-        ...(isTeacher ? [{ key: 'students' as const, label: `Students${courseEnrollments ? ` (${courseEnrollments.length})` : ''}` }] : []),
-    ];
-
-    return (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} aria-hidden="true"></div>
-                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                    {/* Header */}
-                    <div className="bg-white px-6 pt-5 pb-0">
-                        {/* Cover Image */}
-                        <div className="relative -mx-6 -mt-5 h-40 bg-gradient-to-r from-indigo-100 to-purple-100 overflow-hidden mb-4">
-                            {course.cover_image_url ? (
-                                <img src={course.cover_image_url} alt={course.title} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="flex items-center justify-center h-full text-indigo-200">
-                                    <BookOpen className="h-16 w-16" />
-                                </div>
-                            )}
-                            {isTeacher && (
-                                <>
-                                    <input
-                                        ref={coverInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleCoverUpload}
-                                    />
-                                    <button
-                                        onClick={() => coverInputRef.current?.click()}
-                                        disabled={uploadingCover}
-                                        className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-gray-700 hover:bg-white rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
-                                    >
-                                        <Camera className="h-3.5 w-3.5" />
-                                        {uploadingCover ? 'Uploading...' : 'Change Cover'}
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-3">
-                                <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100">
-                                    <BookOpen className="h-6 w-6 text-indigo-600" />
-                                </div>
-                                <h3 className="text-2xl leading-6 font-bold text-gray-900" id="modal-title">{course.title}</h3>
-                            </div>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-500"><X className="h-6 w-6" /></button>
-                        </div>
-
-                        {/* Tabs */}
-                        <div className="mt-4 border-b border-gray-200">
-                            <nav className="-mb-px flex space-x-8">
-                                {tabs.map(tab => (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => setActiveTab(tab.key)}
-                                        className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
-                                            ? 'border-indigo-500 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
-                            </nav>
-                        </div>
-                    </div>
-
-                    {/* Tab Content */}
-                    <div className="px-6 py-5 max-h-[60vh] overflow-y-auto">
-                        {/* ──── Details Tab ──── */}
-                        {activeTab === 'details' && (
-                            <div>
-                                <p className="text-sm text-gray-500 mb-6">{course.description}</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
-                                        {course.schedule ? (
-                                            <div className="space-y-3">
-                                                <div className="flex items-center text-sm text-gray-700">
-                                                    <Calendar className="h-4 w-4 mr-2 text-indigo-500" />
-                                                    <span>{course.schedule.start_date} - {course.schedule.end_date}</span>
-                                                </div>
-                                                <div className="flex items-center text-sm text-gray-700">
-                                                    <Clock className="h-4 w-4 mr-2 text-indigo-500" />
-                                                    <span>{course.schedule.days.join(', ')}</span>
-                                                </div>
-                                                <div className="flex items-center text-sm text-gray-700 ml-6">
-                                                    <span>{course.schedule.start_time} - {course.schedule.end_time}</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <span className="text-sm text-gray-500 italic">No schedule available</span>
-                                        )}
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Details</h4>
-                                        <div className="space-y-3">
-                                            <div className="flex items-center text-sm text-gray-700">
-                                                <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="mr-2 hover:opacity-80 transition-opacity flex">
-                                                    {course.teacher_avatar ? (
-                                                        <img src={course.teacher_avatar} alt="" className="h-4 w-4 rounded-full object-cover bg-gray-100 block" />
-                                                    ) : (
-                                                        <User className="h-4 w-4 text-amber-500 block" />
-                                                    )}
-                                                </Link>
-                                                <span className="font-medium">Teacher:</span>
-                                                <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="ml-1 hover:text-indigo-600 hover:underline">
-                                                    {course.teacher_name || 'Unknown'}
-                                                </Link>
-                                            </div>
-                                            <div className="flex items-center text-sm text-gray-700">
-                                                <School className="h-4 w-4 mr-2 text-blue-500" />
-                                                <span className="font-medium">School:</span>
-                                                <span className="ml-1">{course.school_name || 'N/A'}</span>
-                                            </div>
-                                            <div className="flex items-center text-sm text-gray-700">
-                                                <DollarSign className="h-4 w-4 mr-2 text-green-600" />
-                                                <span className="font-medium">Price:</span>
-                                                <span className="ml-1 font-bold text-gray-900">TJS {course.price.toLocaleString()}</span>
-                                            </div>
-                                            {enrollment && (
-                                                <div className="flex items-center text-sm">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${enrollment.status === 'active' ? 'bg-green-100 text-green-800' :
-                                                        enrollment.status === 'invited' ? 'bg-blue-100 text-blue-800' :
-                                                            enrollment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                                                        }`}>
-                                                        Status: {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ──── Curriculum Tab ──── */}
-                        {activeTab === 'curriculum' && (
-                            <div>
-                                {!canViewContent ? (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <BookOpen className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-                                        <p className="text-sm">You must be enrolled in this course to view the curriculum.</p>
-                                    </div>
-                                ) : topicsLoading ? (
-                                    <div className="text-center py-8 text-gray-500 italic">Loading curriculum...</div>
-                                ) : (
-                                    <>
-                                        {/* Topic list */}
-                                        {(!topics || topics.length === 0) ? (
-                                            <div className="text-center py-8 text-gray-400">
-                                                <FileText className="mx-auto h-10 w-10 mb-3" />
-                                                <p className="text-sm">No curriculum topics added yet.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {topics.map((topic, idx) => (
-                                                    <div key={topic.id} className="flex items-start gap-3 bg-gray-50 rounded-lg p-4 group">
-                                                        <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">
-                                                            {idx + 1}
-                                                        </div>
-                                                        {editingTopicId === topic.id ? (
-                                                            <div className="flex-1 space-y-2">
-                                                                <input
-                                                                    type="text" value={editTitle}
-                                                                    onChange={e => setEditTitle(e.target.value)}
-                                                                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-                                                                />
-                                                                <textarea
-                                                                    value={editDesc} onChange={e => setEditDesc(e.target.value)}
-                                                                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" rows={2}
-                                                                />
-                                                                <div className="flex gap-2">
-                                                                    <button onClick={() => updateTopicMutation.mutate({ id: topic.id, sort_order: topic.sort_order })}
-                                                                        className="inline-flex items-center text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-                                                                        <Check className="h-3 w-3 mr-1" /> Save
-                                                                    </button>
-                                                                    <button onClick={() => setEditingTopicId(null)}
-                                                                        className="text-xs px-2 py-1 text-gray-600 hover:text-gray-800">Cancel</button>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex-1">
-                                                                <h4 className="text-sm font-semibold text-gray-900">{topic.title}</h4>
-                                                                {topic.description && <p className="text-xs text-gray-500 mt-1">{topic.description}</p>}
-                                                            </div>
-                                                        )}
-                                                        {isTeacher && editingTopicId !== topic.id && (
-                                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button onClick={() => { setEditingTopicId(topic.id); setEditTitle(topic.title); setEditDesc(topic.description); }}
-                                                                    className="p-1 text-gray-400 hover:text-indigo-600 rounded" title="Edit">
-                                                                    <Edit2 className="h-4 w-4" />
-                                                                </button>
-                                                                <button onClick={() => { if (confirm('Delete this topic?')) deleteTopicMutation.mutate(topic.id); }}
-                                                                    className="p-1 text-gray-400 hover:text-red-600 rounded" title="Delete">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* Add topic form (teachers only) */}
-                                        {isTeacher && (
-                                            <div className="mt-6 border-t border-gray-200 pt-4">
-                                                <h4 className="text-sm font-medium text-gray-700 mb-3">Add New Topic</h4>
-                                                <div className="space-y-2">
-                                                    <input
-                                                        type="text" placeholder="Topic title" value={newTopicTitle}
-                                                        onChange={e => setNewTopicTitle(e.target.value)}
-                                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                                    />
-                                                    <textarea
-                                                        placeholder="Description (optional)" value={newTopicDesc}
-                                                        onChange={e => setNewTopicDesc(e.target.value)}
-                                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" rows={2}
-                                                    />
-                                                    <button
-                                                        onClick={() => { if (newTopicTitle.trim()) addTopicMutation.mutate(); }}
-                                                        disabled={addTopicMutation.isPending || !newTopicTitle.trim()}
-                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                                                    >
-                                                        <Plus className="h-4 w-4 mr-1" />
-                                                        {addTopicMutation.isPending ? 'Adding...' : 'Add Topic'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ──── Materials Tab ──── */}
-                        {activeTab === 'materials' && (
-                            <div>
-                                {!canViewContent ? (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <FileText className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-                                        <p className="text-sm">You must be enrolled in this course to view materials.</p>
-                                    </div>
-                                ) : materialsLoading ? (
-                                    <div className="text-center py-8 text-gray-500 italic">Loading materials...</div>
-                                ) : (
-                                    <>
-                                        {/* Upload area (teachers only) */}
-                                        {isTeacher && (
-                                            <div className="mb-6">
-                                                <input type="file" ref={fileInputRef} onChange={handleUpload} accept=".pdf,image/*" className="hidden" />
-                                                <button
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    disabled={uploading}
-                                                    className="w-full border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center gap-2 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors cursor-pointer disabled:opacity-50"
-                                                >
-                                                    <Upload className="h-8 w-8" />
-                                                    <span className="text-sm font-medium">{uploading ? 'Uploading...' : 'Click to upload PDF or image'}</span>
-                                                    <span className="text-xs text-gray-400">Max 32 MB</span>
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {/* Materials list */}
-                                        {(!materials || materials.length === 0) ? (
-                                            <div className="text-center py-8 text-gray-400">
-                                                <FileText className="mx-auto h-10 w-10 mb-3" />
-                                                <p className="text-sm">No materials uploaded yet.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {materials.map(m => (
-                                                    <div key={m.id} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 group hover:bg-gray-100 transition-colors">
-                                                        {getFileIcon(m.content_type)}
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-medium text-gray-900 truncate">{m.file_name}</p>
-                                                            <p className="text-xs text-gray-500">{formatFileSize(m.file_size)} · {new Date(m.created_at).toLocaleDateString()}</p>
-                                                        </div>
-                                                        <div className="flex gap-1">
-                                                            <button onClick={() => handleDownload(m)}
-                                                                className="p-1.5 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="Download">
-                                                                <Download className="h-4 w-4" />
-                                                            </button>
-                                                            {isTeacher && (
-                                                                <button onClick={() => { if (confirm('Delete this material?')) deleteMaterialMutation.mutate(m.id); }}
-                                                                    className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100" title="Delete">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ──── Students Tab ──── */}
-                        {activeTab === 'students' && isTeacher && (
-                            <div>
-                                {enrollmentsLoading ? (
-                                    <div className="text-center py-8 text-gray-500 italic">Loading students...</div>
-                                ) : !courseEnrollments || courseEnrollments.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-400">
-                                        <Users className="mx-auto h-10 w-10 mb-3" />
-                                        <p className="text-sm">No students enrolled or pending.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {/* Pending requests first */}
-                                        {courseEnrollments.filter(e => e.status === 'pending').length > 0 && (
-                                            <div className="mb-4">
-                                                <h4 className="text-xs font-semibold text-yellow-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                                    <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
-                                                    Pending Requests ({courseEnrollments.filter(e => e.status === 'pending').length})
-                                                </h4>
-                                                <div className="space-y-2">
-                                                    {courseEnrollments.filter(e => e.status === 'pending').map(e => (
-                                                        <div key={e.id} className="flex items-center gap-3 bg-yellow-50 border border-yellow-100 rounded-lg p-3">
-                                                            <Link to={`/users/${e.student_user_id}`} className="flex-shrink-0">
-                                                                {e.student_avatar ? (
-                                                                    <img src={e.student_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                                                                ) : (
-                                                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                                                        <User className="h-4 w-4 text-gray-500" />
-                                                                    </div>
-                                                                )}
-                                                            </Link>
-                                                            <div className="flex-1 min-w-0">
-                                                                <Link to={`/users/${e.student_user_id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline">
-                                                                    {e.student_name || 'Unknown Student'}
-                                                                </Link>
-                                                                <p className="text-xs text-gray-500">Requested {new Date(e.enrolled_at).toLocaleDateString()}</p>
-                                                            </div>
-                                                            <div className="flex gap-1.5">
-                                                                <button
-                                                                    onClick={() => approveEnrollmentMutation.mutate({ enrollmentId: e.id, approve: true })}
-                                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
-                                                                >
-                                                                    <UserCheck className="h-3.5 w-3.5" /> Approve
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => approveEnrollmentMutation.mutate({ enrollmentId: e.id, approve: false })}
-                                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
-                                                                >
-                                                                    <UserX className="h-3.5 w-3.5" /> Reject
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Active students */}
-                                        {courseEnrollments.filter(e => e.status === 'active').length > 0 && (
-                                            <div>
-                                                <h4 className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                                    <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                                                    Active Students ({courseEnrollments.filter(e => e.status === 'active').length})
-                                                </h4>
-                                                <div className="space-y-2">
-                                                    {courseEnrollments.filter(e => e.status === 'active').map(e => (
-                                                        <div key={e.id} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
-                                                            <Link to={`/users/${e.student_user_id}`} className="flex-shrink-0">
-                                                                {e.student_avatar ? (
-                                                                    <img src={e.student_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                                                                ) : (
-                                                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                                                        <User className="h-4 w-4 text-gray-500" />
-                                                                    </div>
-                                                                )}
-                                                            </Link>
-                                                            <div className="flex-1 min-w-0">
-                                                                <Link to={`/users/${e.student_user_id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline">
-                                                                    {e.student_name || 'Unknown Student'}
-                                                                </Link>
-                                                                <p className="text-xs text-gray-500">Joined {new Date(e.enrolled_at).toLocaleDateString()}</p>
-                                                            </div>
-                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Active</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Invited students */}
-                                        {courseEnrollments.filter(e => e.status === 'invited').length > 0 && (
-                                            <div>
-                                                <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                                                    Invited ({courseEnrollments.filter(e => e.status === 'invited').length})
-                                                </h4>
-                                                <div className="space-y-2">
-                                                    {courseEnrollments.filter(e => e.status === 'invited').map(e => (
-                                                        <div key={e.id} className="flex items-center gap-3 bg-blue-50 rounded-lg p-3">
-                                                            <Link to={`/users/${e.student_user_id}`} className="flex-shrink-0">
-                                                                {e.student_avatar ? (
-                                                                    <img src={e.student_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                                                                ) : (
-                                                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                                                        <User className="h-4 w-4 text-gray-500" />
-                                                                    </div>
-                                                                )}
-                                                            </Link>
-                                                            <div className="flex-1 min-w-0">
-                                                                <Link to={`/users/${e.student_user_id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline">
-                                                                    {e.student_name || 'Unknown Student'}
-                                                                </Link>
-                                                                <p className="text-xs text-gray-500">Invited {new Date(e.enrolled_at).toLocaleDateString()}</p>
-                                                            </div>
-                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Pending Response</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
-                        {canInvite && (
-                            <button type="button"
-                                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
-                                onClick={onInvite}>
-                                <Mail className="h-4 w-4 mr-2" /> Invite Student
-                            </button>
-                        )}
-                        {isStudent && (
-                            <>
-                                {(!enrollment || enrollment.status === 'rejected') && onRequestAccess && (
-                                    <button type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:w-auto sm:text-sm"
-                                        onClick={onRequestAccess}>
-                                        {enrollment?.status === 'rejected' ? 'Request Again' : 'Request Access'}
-                                    </button>
-                                )}
-                                {enrollment?.status === 'invited' && onRespond && (
-                                    <>
-                                        <button type="button"
-                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 sm:w-auto sm:text-sm"
-                                            onClick={() => onRespond(enrollment.id, true)}>
-                                            Accept Invitation
-                                        </button>
-                                        <button type="button"
-                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:w-auto sm:text-sm"
-                                            onClick={() => onRespond(enrollment.id, false)}>
-                                            Decline
-                                        </button>
-                                    </>
-                                )}
-                                {enrollment?.status === 'pending' && onCancelRequest && (
-                                    <button type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-yellow-500 text-base font-medium text-white hover:bg-yellow-600 sm:w-auto sm:text-sm"
-                                        onClick={() => onCancelRequest(enrollment.id)}>
-                                        Cancel Request
-                                    </button>
-                                )}
-                            </>
-                        )}
-                        <button type="button"
-                            className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:w-auto sm:text-sm"
-                            onClick={onClose}>
-                            Close
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
     const { user } = useAuth();
@@ -1029,6 +330,7 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
         title: '',
         description: '',
         price: '',
+        language: '',
         days: [] as string[],
         start_time: '',
         end_time: '',
@@ -1055,6 +357,7 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
                 title: data.title,
                 description: data.description,
                 price: parseFloat(data.price),
+                language: data.language,
                 teacher_id: isSchoolAdmin ? data.teacher_id : undefined,
                 schedule: {
                     days: data.days,
@@ -1220,6 +523,20 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
                                 value={formData.price}
                                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Language</label>
+                            <select
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                value={formData.language}
+                                onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                            >
+                                <option value="">Select language...</option>
+                                {['English', 'Russian', 'Tajik', 'Arabic', 'Chinese', 'French', 'German', 'Spanish', 'Korean', 'Japanese', 'Turkish', 'Persian', 'Hindi', 'Uzbek', 'Italian', 'Portuguese', 'Urdu', 'Kazakh', 'Kyrgyz', 'Malay'].map(lang => (
+                                    <option key={lang} value={lang}>{lang}</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">

@@ -103,3 +103,34 @@ func (r *RatingRepository) CheckCollaboration(ctx context.Context, fromUserID st
 
 	return false, errors.New("invalid target for collaboration check")
 }
+
+type RatingWithReviewer struct {
+	domain.Rating
+	ReviewerName string `json:"reviewer_name"`
+}
+
+func (r *RatingRepository) ListRatingsForSchool(ctx context.Context, schoolID string) ([]RatingWithReviewer, error) {
+	query := `
+		SELECT rat.id, rat.from_user_id, rat.to_user_id, rat.to_school_id, rat.score, COALESCE(rat.comment, ''), rat.created_at,
+		       COALESCE(u.name, u.email) as reviewer_name
+		FROM ratings rat
+		JOIN users u ON rat.from_user_id = u.id
+		WHERE rat.to_school_id = ?
+		ORDER BY rat.created_at DESC
+	`
+	rows, err := r.DB.QueryContext(ctx, query, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ratings []RatingWithReviewer
+	for rows.Next() {
+		var rr RatingWithReviewer
+		if err := rows.Scan(&rr.ID, &rr.FromUserID, &rr.ToUserID, &rr.ToSchoolID, &rr.Score, &rr.Comment, &rr.CreatedAt, &rr.ReviewerName); err != nil {
+			return nil, err
+		}
+		ratings = append(ratings, rr)
+	}
+	return ratings, nil
+}

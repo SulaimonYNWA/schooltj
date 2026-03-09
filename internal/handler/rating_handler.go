@@ -4,15 +4,18 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/schooltj/internal/repository"
 	"github.com/schooltj/internal/service"
 )
 
 type RatingHandler struct {
-	service *service.RatingService
+	service    *service.RatingService
+	ratingRepo *repository.RatingRepository
 }
 
-func NewRatingHandler(s *service.RatingService) *RatingHandler {
-	return &RatingHandler{service: s}
+func NewRatingHandler(s *service.RatingService, rr *repository.RatingRepository) *RatingHandler {
+	return &RatingHandler{service: s, ratingRepo: rr}
 }
 
 type submitRatingRequest struct {
@@ -43,4 +46,24 @@ func (h *RatingHandler) SubmitRating(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(rating)
+}
+
+func (h *RatingHandler) ListSchoolRatings(w http.ResponseWriter, r *http.Request) {
+	schoolID := chi.URLParam(r, "id")
+	if schoolID == "" {
+		http.Error(w, "school id required", http.StatusBadRequest)
+		return
+	}
+
+	ratings, err := h.ratingRepo.ListRatingsForSchool(r.Context(), schoolID)
+	if err != nil {
+		http.Error(w, "failed to fetch ratings", http.StatusInternalServerError)
+		return
+	}
+	if ratings == nil {
+		ratings = []repository.RatingWithReviewer{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ratings)
 }

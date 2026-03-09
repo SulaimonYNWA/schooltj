@@ -32,14 +32,14 @@ func (r *CourseRepository) CreateCourse(ctx context.Context, course *domain.Cour
 		}
 	}
 
-	query := `INSERT INTO courses (id, title, description, schedule, school_id, teacher_id, price, cover_image_url, created_at, updated_at) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	_, err := r.DB.ExecContext(ctx, query, course.ID, course.Title, course.Description, scheduleJSON, course.SchoolID, course.TeacherID, course.Price, course.CoverImageURL)
+	query := `INSERT INTO courses (id, title, description, schedule, school_id, teacher_id, price, cover_image_url, language, created_at, updated_at) 
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+	_, err := r.DB.ExecContext(ctx, query, course.ID, course.Title, course.Description, scheduleJSON, course.SchoolID, course.TeacherID, course.Price, course.CoverImageURL, course.Language)
 	return err
 }
 
 func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domain.Course, error) {
-	query := `SELECT id, title, description, schedule, school_id, teacher_id, price, cover_image_url, created_at, updated_at FROM courses WHERE id = ?`
+	query := `SELECT id, title, description, schedule, school_id, teacher_id, price, cover_image_url, language, created_at, updated_at FROM courses WHERE id = ?`
 	row := r.DB.QueryRowContext(ctx, query, id)
 
 	var course domain.Course
@@ -48,7 +48,7 @@ func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domai
 	var scheduleRaw sql.NullString
 	var coverImageURL sql.NullString
 
-	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleRaw, &schoolID, &teacherID, &course.Price, &coverImageURL, &course.CreatedAt, &course.UpdatedAt)
+	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleRaw, &schoolID, &teacherID, &course.Price, &coverImageURL, &course.Language, &course.CreatedAt, &course.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCourseNotFound
@@ -95,7 +95,7 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 	}
 
 	query := `
-		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.created_at, c.updated_at,
+		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
 			   u.avatar_url,
@@ -128,7 +128,7 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		var schoolName sql.NullString
 
 		if err := rows.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
-			&course.Price, &coverImageURL, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName); err != nil {
+			&course.Price, &coverImageURL, &course.Language, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName); err != nil {
 			return nil, err
 		}
 

@@ -46,11 +46,11 @@ func main() {
 	announcementRepo := repository.NewAnnouncementRepository(repo.DB)
 	courseService := service.NewCourseService(courseRepo, schoolRepo, userRepo, studentRepo, notificationRepo, announcementRepo)
 	schoolService := service.NewSchoolService(schoolRepo, authService, courseService)
-	schoolHandler := handler.NewSchoolHandler(schoolService, schoolRepo)
+	schoolHandler := handler.NewSchoolHandler(schoolService, schoolRepo, courseRepo)
 	courseHandler := handler.NewCourseHandler(courseService)
 	ratingRepo := repository.NewRatingRepository(repo.DB)
 	ratingService := service.NewRatingService(ratingRepo)
-	ratingHandler := handler.NewRatingHandler(ratingService)
+	ratingHandler := handler.NewRatingHandler(ratingService, ratingRepo)
 	studentService := service.NewStudentService(studentRepo)
 	studentHandler := handler.NewStudentHandler(studentService)
 	attendanceRepo := repository.NewAttendanceRepository(repo.DB)
@@ -110,6 +110,7 @@ func main() {
 		r.Post("/api/schools/teachers", schoolHandler.AddTeacher)
 		r.Get("/api/schools", schoolHandler.ListSchools)
 		r.Get("/api/schools/{id}", schoolHandler.GetSchoolDetail)
+		r.Put("/api/schools/my", schoolHandler.UpdateSchool)
 
 		// Course routes
 		r.Get("/api/courses", courseHandler.List)
@@ -135,6 +136,7 @@ func main() {
 
 		// Rating routes
 		r.Post("/api/ratings", ratingHandler.SubmitRating)
+		r.Get("/api/schools/{id}/ratings", ratingHandler.ListSchoolRatings)
 
 		// Student routes
 		r.Get("/api/students", studentHandler.List)

@@ -7,6 +7,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AddTeacher from './pages/AddTeacher';
 import Courses from './pages/Courses';
+import CourseDetail from './pages/CourseDetail';
 import Teachers from './pages/Teachers';
 import Profile from './pages/Profile';
 import Students from './pages/Students';
@@ -22,6 +23,8 @@ import Homework from './pages/Homework';
 import Messages from './pages/Messages';
 import Reports from './pages/Reports';
 import UserProfile from './pages/UserProfile';
+import Schools from './pages/Schools';
+import SchoolSetup from './pages/SchoolSetup';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -46,6 +49,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/courses" element={<Courses />} />
+              <Route path="/courses/:id" element={<CourseDetail />} />
               <Route path="/teachers" element={<Teachers />} />
               <Route path="/students" element={<Students />} />
               <Route path="/attendance" element={<Attendance />} />
@@ -55,6 +59,8 @@ function App() {
               <Route path="/timetable" element={<Timetable />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/grades" element={<Grades />} />
+              <Route path="/schools" element={<Schools />} />
+              <Route path="/schools/setup" element={<SchoolSetup />} />
               <Route path="/schools/:id" element={<SchoolDetail />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/homework" element={<Homework />} />

@@ -29,12 +29,13 @@ func NewCourseService(courseRepo *repository.CourseRepository, schoolRepo *repos
 	}
 }
 
-func (s *CourseService) CreateCourse(ctx context.Context, creatorID string, role domain.Role, title, description string, schedule *domain.Schedule, price float64, teacherID *string) (*domain.Course, error) {
+func (s *CourseService) CreateCourse(ctx context.Context, creatorID string, role domain.Role, title, description string, schedule *domain.Schedule, price float64, language string, teacherID *string) (*domain.Course, error) {
 	course := &domain.Course{
 		Title:       title,
 		Description: description,
 		Schedule:    schedule,
 		Price:       price,
+		Language:    language,
 	}
 
 	if role == domain.RoleTeacher {

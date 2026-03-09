@@ -78,6 +78,7 @@ type updateTopicRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	SortOrder   int    `json:"sort_order"`
+	Visible     *bool  `json:"visible"`
 }
 
 func (h *CourseContentHandler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +100,10 @@ func (h *CourseContentHandler) UpdateTopic(w http.ResponseWriter, r *http.Reques
 		Title:       req.Title,
 		Description: req.Description,
 		SortOrder:   req.SortOrder,
+		Visible:     true,
+	}
+	if req.Visible != nil {
+		topic.Visible = *req.Visible
 	}
 
 	if err := h.service.UpdateTopic(r.Context(), userID, topic); err != nil {

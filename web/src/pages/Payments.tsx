@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
-import { DollarSign, Plus, CreditCard, Banknote, ArrowRightLeft, MoreHorizontal, Filter } from 'lucide-react';
+import { DollarSign, Plus, CreditCard, Banknote, ArrowRightLeft, MoreHorizontal, Filter, ImageIcon, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Course {
@@ -25,7 +25,9 @@ interface Payment {
     amount: number;
     method: string;
     note: string;
+    receipt_url?: string;
     recorded_by: string;
+    recorded_by_name?: string;
     paid_at: string;
     created_at: string;
 }
@@ -58,6 +60,7 @@ function AdminPaymentsView() {
         amount: '',
         method: 'cash',
         note: '',
+        receipt_url: '',
         paid_at: new Date().toISOString().split('T')[0],
     });
     const [formError, setFormError] = useState('');
@@ -98,7 +101,7 @@ function AdminPaymentsView() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             setShowForm(false);
-            setFormData({ student_user_id: '', course_id: '', amount: '', method: 'cash', note: '', paid_at: new Date().toISOString().split('T')[0] });
+            setFormData({ student_user_id: '', course_id: '', amount: '', method: 'cash', note: '', receipt_url: '', paid_at: new Date().toISOString().split('T')[0] });
             setFormError('');
         },
         onError: (err: any) => {
@@ -222,6 +225,21 @@ function AdminPaymentsView() {
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                             />
                         </div>
+                        {(formData.method === 'card' || formData.method === 'transfer') && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <ImageIcon className="inline h-3.5 w-3.5 mr-1" />
+                                    Receipt Image URL
+                                </label>
+                                <input
+                                    type="url"
+                                    value={formData.receipt_url}
+                                    onChange={e => setFormData(prev => ({ ...prev, receipt_url: e.target.value }))}
+                                    placeholder="https://example.com/receipt.jpg"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                            </div>
+                        )}
                     </div>
                     {formError && <p className="mt-3 text-sm text-red-500">{formError}</p>}
                     <div className="mt-4 flex gap-3">
@@ -272,8 +290,9 @@ function AdminPaymentsView() {
                                 <th className="text-left px-6 py-3 font-medium text-gray-500">Course</th>
                                 <th className="text-right px-6 py-3 font-medium text-gray-500">Amount</th>
                                 <th className="text-center px-6 py-3 font-medium text-gray-500">Method</th>
+                                <th className="text-left px-6 py-3 font-medium text-gray-500">Recorded By</th>
                                 <th className="text-left px-6 py-3 font-medium text-gray-500">Date</th>
-                                <th className="text-left px-6 py-3 font-medium text-gray-500">Note</th>
+                                <th className="text-left px-6 py-3 font-medium text-gray-500">Details</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -295,10 +314,22 @@ function AdminPaymentsView() {
                                                 {mc.label}
                                             </span>
                                         </td>
+                                        <td className="px-6 py-3.5 text-gray-600 text-xs">
+                                            {p.recorded_by_name || '—'}
+                                        </td>
                                         <td className="px-6 py-3.5 text-gray-500 font-mono text-xs">
                                             {new Date(p.paid_at).toLocaleDateString()}
                                         </td>
-                                        <td className="px-6 py-3.5 text-gray-400 truncate max-w-[200px]">{p.note || '—'}</td>
+                                        <td className="px-6 py-3.5">
+                                            <div className="flex items-center gap-2">
+                                                {p.note && <span className="text-xs text-gray-400 truncate max-w-[120px]" title={p.note}>{p.note}</span>}
+                                                {p.receipt_url && (
+                                                    <a href={p.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100 transition-colors">
+                                                        <ImageIcon className="h-3 w-3" /> Receipt
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -312,6 +343,7 @@ function AdminPaymentsView() {
 
 // ─── Student View ───────────────────────────────────────────────────────
 function StudentPaymentsView() {
+    const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
     const { data: payments, isLoading } = useQuery<Payment[]>({
         queryKey: ['my-payments'],
         queryFn: async () => {
@@ -353,21 +385,53 @@ function StudentPaymentsView() {
                             const mc = methodConfig[p.method] || methodConfig.other;
                             const MIcon = mc.icon;
                             return (
-                                <div key={p.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                    <div>
-                                        <p className="font-medium text-gray-900"><Link to={`/courses?view=${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></p>
-                                        <p className="text-xs text-gray-400 mt-0.5">
-                                            {new Date(p.paid_at).toLocaleDateString()} • <span className={`inline-flex items-center gap-1 ${mc.color} px-1.5 py-0.5 rounded text-xs`}><MIcon className="h-3 w-3" />{mc.label}</span>
-                                        </p>
-                                        {p.note && <p className="text-xs text-gray-400 mt-1">{p.note}</p>}
+                                <div key={p.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                            <p className="font-medium text-gray-900"><Link to={`/courses?view=${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></p>
+                                            <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                                <span className="text-xs text-gray-400">
+                                                    {new Date(p.paid_at).toLocaleDateString()}
+                                                </span>
+                                                <span className={`inline-flex items-center gap-1 ${mc.color} px-1.5 py-0.5 rounded text-xs`}>
+                                                    <MIcon className="h-3 w-3" />{mc.label}
+                                                </span>
+                                                {p.recorded_by_name && (
+                                                    <span className="text-xs text-gray-400">Recorded by {p.recorded_by_name}</span>
+                                                )}
+                                            </div>
+                                            {p.note && <p className="text-xs text-gray-400 mt-1">{p.note}</p>}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            {p.receipt_url && (
+                                                <button
+                                                    onClick={() => setReceiptPreview(p.receipt_url!)}
+                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100 transition-colors"
+                                                >
+                                                    <ImageIcon className="h-3 w-3" /> Receipt
+                                                </button>
+                                            )}
+                                            <span className="text-lg font-bold text-emerald-600">${p.amount.toFixed(2)}</span>
+                                        </div>
                                     </div>
-                                    <span className="text-lg font-bold text-emerald-600">${p.amount.toFixed(2)}</span>
                                 </div>
                             );
                         })}
                     </div>
                 )}
             </div>
+
+            {/* Receipt Preview Modal */}
+            {receiptPreview && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setReceiptPreview(null)}>
+                    <div className="relative max-w-2xl max-h-[80vh] bg-white rounded-xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setReceiptPreview(null)} className="absolute top-3 right-3 p-1 bg-white/80 rounded-full hover:bg-white shadow-sm">
+                            <X className="h-5 w-5 text-gray-600" />
+                        </button>
+                        <img src={receiptPreview} alt="Payment receipt" className="max-w-full max-h-[80vh] object-contain" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

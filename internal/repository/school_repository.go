@@ -100,10 +100,10 @@ func (r *SchoolRepository) ListTeachers(ctx context.Context, schoolID string) ([
 }
 
 func (r *SchoolRepository) GetSchoolByID(ctx context.Context, id string) (*domain.School, error) {
-	query := `SELECT id, admin_user_id, name, COALESCE(tax_id, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(city, ''), is_verified, rating_avg, rating_count, created_at, updated_at FROM schools WHERE id = ?`
+	query := `SELECT id, admin_user_id, name, COALESCE(description, ''), COALESCE(tax_id, ''), COALESCE(phone, ''), COALESCE(email, ''), COALESCE(address, ''), COALESCE(city, ''), COALESCE(website, ''), COALESCE(logo_url, ''), is_verified, rating_avg, rating_count, created_at, updated_at FROM schools WHERE id = ?`
 	row := r.DB.QueryRowContext(ctx, query, id)
 	var school domain.School
-	err := row.Scan(&school.ID, &school.AdminUserID, &school.Name, &school.TaxID, &school.Phone, &school.Address, &school.City, &school.IsVerified, &school.RatingAvg, &school.RatingCount, &school.CreatedAt, &school.UpdatedAt)
+	err := row.Scan(&school.ID, &school.AdminUserID, &school.Name, &school.Description, &school.TaxID, &school.Phone, &school.Email, &school.Address, &school.City, &school.Website, &school.LogoURL, &school.IsVerified, &school.RatingAvg, &school.RatingCount, &school.CreatedAt, &school.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("school not found")
@@ -114,7 +114,7 @@ func (r *SchoolRepository) GetSchoolByID(ctx context.Context, id string) (*domai
 }
 
 func (r *SchoolRepository) ListSchools(ctx context.Context) ([]domain.School, error) {
-	query := `SELECT id, admin_user_id, name, COALESCE(city, ''), is_verified, rating_avg, rating_count, created_at, updated_at FROM schools ORDER BY rating_avg DESC, name ASC`
+	query := `SELECT id, admin_user_id, name, COALESCE(description, ''), COALESCE(city, ''), COALESCE(website, ''), COALESCE(logo_url, ''), COALESCE(email, ''), COALESCE(phone, ''), is_verified, rating_avg, rating_count, created_at, updated_at FROM schools ORDER BY rating_avg DESC, name ASC`
 	rows, err := r.DB.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -123,10 +123,16 @@ func (r *SchoolRepository) ListSchools(ctx context.Context) ([]domain.School, er
 	var schools []domain.School
 	for rows.Next() {
 		var s domain.School
-		if err := rows.Scan(&s.ID, &s.AdminUserID, &s.Name, &s.City, &s.IsVerified, &s.RatingAvg, &s.RatingCount, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.AdminUserID, &s.Name, &s.Description, &s.City, &s.Website, &s.LogoURL, &s.Email, &s.Phone, &s.IsVerified, &s.RatingAvg, &s.RatingCount, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, err
 		}
 		schools = append(schools, s)
 	}
 	return schools, nil
+}
+
+func (r *SchoolRepository) UpdateSchool(ctx context.Context, school *domain.School) error {
+	query := `UPDATE schools SET name = ?, description = ?, phone = ?, email = ?, address = ?, city = ?, website = ?, logo_url = ?, tax_id = ?, updated_at = NOW() WHERE id = ?`
+	_, err := r.DB.ExecContext(ctx, query, school.Name, school.Description, school.Phone, school.Email, school.Address, school.City, school.Website, school.LogoURL, school.TaxID, school.ID)
+	return err
 }

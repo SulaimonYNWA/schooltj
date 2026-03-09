@@ -45,7 +45,7 @@ func (h *PaymentHandler) RecordPayment(w http.ResponseWriter, r *http.Request) {
 
 // ListPayments handles GET /api/payments?course_id=
 func (h *PaymentHandler) ListPayments(w http.ResponseWriter, r *http.Request) {
-	_, ok := r.Context().Value(UserContextKey).(string)
+	userID, ok := r.Context().Value(UserContextKey).(string)
 	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
 
 	if !ok || !okRole {
@@ -54,7 +54,7 @@ func (h *PaymentHandler) ListPayments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	courseID := r.URL.Query().Get("course_id")
-	payments, err := h.service.ListPayments(r.Context(), role, courseID)
+	payments, err := h.service.ListPayments(r.Context(), userID, role, courseID)
 	if err != nil {
 		log.Printf("[PaymentHandler.ListPayments] error: %v", err)
 		http.Error(w, "failed to fetch payments", http.StatusInternalServerError)
