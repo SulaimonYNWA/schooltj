@@ -21,6 +21,10 @@ interface Course {
     schedule?: Schedule;
     price: number;
     language?: string;
+    category_id?: string;
+    category_name?: string;
+    difficulty?: string;
+    tags?: string[];
     teacher_id?: string;
     teacher_name?: string;
     teacher_email?: string;
@@ -57,6 +61,18 @@ export default function CourseList() {
     const [viewMode, setViewMode] = useState<'all' | 'my'>('all');
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
+
+    const [selectedCategory, setSelectedCategory] = useState<string>('');
+    const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
+
+    // Fetch categories for filtering
+    const { data: categories } = useQuery({
+        queryKey: ['categories'],
+        queryFn: async () => {
+            const res = await api.get('/api/categories');
+            return res.data;
+        }
+    });
 
     const { data: courses, isLoading, error } = useQuery<Course[]>({
         queryKey: ['courses'],
@@ -96,6 +112,12 @@ export default function CourseList() {
     }
 
     const displayedCourses = viewMode === 'all' ? courses : myEnrollments?.map(e => e.course);
+
+    const filteredCourses = displayedCourses?.filter(course => {
+        if (selectedCategory && course.category_id !== selectedCategory) return false;
+        if (selectedDifficulty && course.difficulty !== selectedDifficulty) return false;
+        return true;
+    });
 
 
 
@@ -147,160 +169,193 @@ export default function CourseList() {
                 </div>
             </div>
 
-            {(!displayedCourses || displayedCourses.length === 0) ? (
-                <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
-                    <BookOpen className="mx-auto h-12 w-12 text-gray-300" />
-                    <h3 className="mt-2 text-sm font-semibold text-gray-900 italic">No courses found</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                        {viewMode === 'all' ? 'Get started by creating your first course or browse available ones.' : 'You are not enrolled in any courses yet.'}
-                    </p>
-                    {isTeacherOrSchool && viewMode === 'all' && (
-                        <div className="mt-6">
-                            <button
-                                onClick={() => setIsCreateModalOpen(true)}
-                                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                            >
-                                <Plus className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-                                New Course
-                            </button>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {displayedCourses.map((course) => {
-                        const enrollment = myEnrollments?.find(e => e.course.id === course.id)?.enrollment;
-                        const statusColor = enrollment?.status === 'active' ? 'bg-green-100 text-green-800' :
-                            enrollment?.status === 'invited' ? 'bg-blue-100 text-blue-800' :
-                                enrollment?.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                    enrollment?.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-800';
+            {/* Filters */}
+            <div className="flex flex-wrap gap-4 mb-6">
+                <select
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    value={selectedCategory}
+                    onChange={e => setSelectedCategory(e.target.value)}
+                >
+                    <option value="">All Categories</option>
+                    {categories?.map((cat: any) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                </select>
+                <select
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    value={selectedDifficulty}
+                    onChange={e => setSelectedDifficulty(e.target.value)}
+                >
+                    <option value="">All Difficulties</option>
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                </select>
+            </div>
 
-                        return (
-                            <div
-                                key={course.id}
-                                onClick={() => navigate(`/courses/${course.id}`)}
-                                className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-indigo-100 cursor-pointer"
-                            >
-                                <div className="h-48 bg-gray-200 group-hover:scale-105 transition-transform duration-300 relative overflow-hidden">
-                                    {course.cover_image_url ? (
-                                        <img src={course.cover_image_url} alt={course.title} className="absolute inset-0 w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-indigo-50 text-indigo-200">
-                                            <BookOpen className="h-12 w-12" />
-                                        </div>
-                                    )}
-                                    {enrollment && enrollment.status && (
-                                        <div className="absolute top-2 right-2">
-                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
-                                                {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="p-6 flex-1">
-                                    <div className="flex items-start justify-between">
-                                        <div className="bg-indigo-50 p-2 rounded-lg">
-                                            <BookOpen className="h-6 w-6 text-indigo-600" />
-                                        </div>
-                                    </div>
-                                    <h3 className="mt-4 text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                        {course.title}
-                                    </h3>
-                                    <p className="mt-3 text-sm leading-relaxed text-gray-600 line-clamp-2">
-                                        {course.description}
-                                    </p>
-                                    {course.schedule && (
-                                        <p className="mt-2 text-xs font-medium text-gray-500 bg-gray-50 inline-block px-2 py-1 rounded">
-                                            {formatSchedule(course.schedule)}
-                                        </p>
-                                    )}
+            {
+                (!displayedCourses || displayedCourses.length === 0) ? (
+                    <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
+                        <BookOpen className="mx-auto h-12 w-12 text-gray-300" />
+                        <h3 className="mt-2 text-sm font-semibold text-gray-900 italic">No courses found</h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                            {viewMode === 'all' ? 'Get started by creating your first course or browse available ones.' : 'You are not enrolled in any courses yet.'}
+                        </p>
+                        {isTeacherOrSchool && viewMode === 'all' && (
+                            <div className="mt-6">
+                                <button
+                                    onClick={() => setIsCreateModalOpen(true)}
+                                    className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                                >
+                                    <Plus className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+                                    New Course
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {filteredCourses?.map((course) => {
+                            const enrollment = myEnrollments?.find(e => e.course.id === course.id)?.enrollment;
+                            const statusColor = enrollment?.status === 'active' ? 'bg-green-100 text-green-800' :
+                                enrollment?.status === 'invited' ? 'bg-blue-100 text-blue-800' :
+                                    enrollment?.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                        enrollment?.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-800';
 
-                                    <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-500 border-t border-gray-50 pt-4">
-                                        <div className="flex items-center gap-1.5">
-                                            <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="hover:opacity-80 transition-opacity">
-                                                {course.teacher_avatar ? (
-                                                    <img src={course.teacher_avatar} alt="" className="h-5 w-5 rounded-full object-cover bg-gray-100 block" />
-                                                ) : (
-                                                    <User className="h-4 w-4 text-amber-500 block" />
-                                                )}
-                                            </Link>
-                                            <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="hover:text-indigo-600 hover:underline">
-                                                {course.teacher_name || 'Unknown Teacher'}
-                                            </Link>
-                                        </div>
-                                        {course.school_name && (
-                                            <div className="flex items-center">
-                                                <School className="mr-1.5 h-4 w-4 text-blue-500" />
-                                                {course.school_name}
+                            return (
+                                <div
+                                    key={course.id}
+                                    onClick={() => navigate(`/courses/${course.id}`)}
+                                    className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-indigo-100 cursor-pointer"
+                                >
+                                    <div className="h-48 bg-gray-200 group-hover:scale-105 transition-transform duration-300 relative overflow-hidden">
+                                        {course.cover_image_url ? (
+                                            <img src={course.cover_image_url} alt={course.title} className="absolute inset-0 w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-indigo-50 text-indigo-200">
+                                                <BookOpen className="h-12 w-12" />
+                                            </div>
+                                        )}
+                                        {enrollment && enrollment.status && (
+                                            <div className="absolute top-2 right-2">
+                                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                                                    {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
+                                                </span>
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                                <div className="bg-gray-50 px-6 py-4 flex items-center justify-between">
-                                    <div className="flex items-center font-bold text-gray-900">
-                                        <Tag className="mr-1.5 h-4 w-4 text-indigo-500" />
-                                        TJS {course.price.toLocaleString()}
-                                        {course.language && (
-                                            <span className="ml-3 px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">{course.language}</span>
+                                    <div className="p-6 flex-1">
+                                        <div className="flex items-start justify-between">
+                                            <div className="bg-indigo-50 p-2 rounded-lg">
+                                                <BookOpen className="h-6 w-6 text-indigo-600" />
+                                            </div>
+                                        </div>
+                                        <h3 className="mt-4 text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                            {course.title}
+                                        </h3>
+                                        <p className="mt-3 text-sm leading-relaxed text-gray-600 line-clamp-2">
+                                            {course.description}
+                                        </p>
+                                        {course.schedule && (
+                                            <p className="mt-2 text-xs font-medium text-gray-500 bg-gray-50 inline-block px-2 py-1 rounded">
+                                                {formatSchedule(course.schedule)}
+                                            </p>
                                         )}
+
+                                        <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-500 border-t border-gray-50 pt-4">
+                                            <div className="flex items-center gap-1.5">
+                                                <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="hover:opacity-80 transition-opacity">
+                                                    {course.teacher_avatar ? (
+                                                        <img src={course.teacher_avatar} alt="" className="h-5 w-5 rounded-full object-cover bg-gray-100 block" />
+                                                    ) : (
+                                                        <User className="h-4 w-4 text-amber-500 block" />
+                                                    )}
+                                                </Link>
+                                                <Link to={course.teacher_id ? `/users/${course.teacher_id}` : '#'} className="hover:text-indigo-600 hover:underline">
+                                                    {course.teacher_name || 'Unknown Teacher'}
+                                                </Link>
+                                            </div>
+                                            {course.school_name && (
+                                                <div className="flex items-center">
+                                                    <School className="mr-1.5 h-4 w-4 text-blue-500" />
+                                                    {course.school_name}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        {isTeacherOrSchool && (
+                                    <div className="bg-gray-50 px-6 py-4 flex items-center justify-between">
+                                        <div className="flex items-center font-bold text-gray-900">
+                                            <Tag className="mr-1.5 h-4 w-4 text-indigo-500" />
+                                            TJS {course.price.toLocaleString()}
+                                            {course.language && (
+                                                <span className="ml-3 px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">{course.language}</span>
+                                            )}
+                                            {course.difficulty && (
+                                                <span className="ml-2 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full capitalize">{course.difficulty}</span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {isTeacherOrSchool && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedCourseId(course.id);
+                                                        setIsInviteModalOpen(true);
+                                                    }}
+                                                    className="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors p-1 rounded hover:bg-gray-200"
+                                                    title="Invite Student"
+                                                >
+                                                    <Mail className="h-5 w-5" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setSelectedCourseId(course.id);
-                                                    setIsInviteModalOpen(true);
+                                                    navigate(`/courses/${course.id}`);
                                                 }}
-                                                className="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors p-1 rounded hover:bg-gray-200"
-                                                title="Invite Student"
+                                                className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
                                             >
-                                                <Mail className="h-5 w-5" />
+                                                Details →
                                             </button>
-                                        )}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/courses/${course.id}`);
-                                            }}
-                                            className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
-                                        >
-                                            Details →
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+                            );
+                        })}
+                    </div>
+                )
+            }
 
 
 
-            {isCreateModalOpen && (
-                <CreateCourseModal
-                    onClose={() => setIsCreateModalOpen(false)}
-                    onSuccess={() => {
-                        setIsCreateModalOpen(false);
-                        queryClient.invalidateQueries({ queryKey: ['courses'] });
-                    }}
-                />
-            )}
+            {
+                isCreateModalOpen && (
+                    <CreateCourseModal
+                        onClose={() => setIsCreateModalOpen(false)}
+                        onSuccess={() => {
+                            setIsCreateModalOpen(false);
+                            queryClient.invalidateQueries({ queryKey: ['courses'] });
+                        }}
+                    />
+                )
+            }
 
-            {isInviteModalOpen && selectedCourseId && (
-                <InviteStudentModal
-                    courseId={selectedCourseId}
-                    onClose={() => {
-                        setIsInviteModalOpen(false);
-                        setSelectedCourseId(null);
-                    }}
-                    onSuccess={() => {
-                        setIsInviteModalOpen(false);
-                        setSelectedCourseId(null);
-                    }}
-                />
-            )}
-        </div>
+            {
+                isInviteModalOpen && selectedCourseId && (
+                    <InviteStudentModal
+                        courseId={selectedCourseId}
+                        onClose={() => {
+                            setIsInviteModalOpen(false);
+                            setSelectedCourseId(null);
+                        }}
+                        onSuccess={() => {
+                            setIsInviteModalOpen(false);
+                            setSelectedCourseId(null);
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 }
 
@@ -312,6 +367,9 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
         description: '',
         price: '',
         language: '',
+        category_id: '',
+        difficulty: 'beginner',
+        tags: '',
         days: [] as string[],
         start_time: '',
         end_time: '',
@@ -332,6 +390,15 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
         enabled: isSchoolAdmin,
     });
 
+    // Fetch categories
+    const { data: categories } = useQuery({
+        queryKey: ['categories'],
+        queryFn: async () => {
+            const res = await api.get('/api/categories');
+            return res.data;
+        }
+    });
+
     const createMutation = useMutation({
         mutationFn: async (data: typeof formData) => {
             return api.post('/api/courses', {
@@ -339,6 +406,9 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
                 description: data.description,
                 price: parseFloat(data.price),
                 language: data.language,
+                category_id: data.category_id || undefined,
+                difficulty: data.difficulty,
+                tags: data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
                 teacher_id: isSchoolAdmin ? data.teacher_id : undefined,
                 schedule: {
                     days: data.days,
@@ -518,6 +588,45 @@ function CreateCourseModal({ onClose, onSuccess }: { onClose: () => void, onSucc
                                     <option key={lang} value={lang}>{lang}</option>
                                 ))}
                             </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Category</label>
+                                <select
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                    value={formData.category_id}
+                                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                                >
+                                    <option value="">Select category...</option>
+                                    {categories?.map((cat: any) => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Difficulty</label>
+                                <select
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                    value={formData.difficulty}
+                                    onChange={(e) => setFormData({ ...formData, difficulty: e.target.value })}
+                                >
+                                    <option value="beginner">Beginner</option>
+                                    <option value="intermediate">Intermediate</option>
+                                    <option value="advanced">Advanced</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
+                            <input
+                                type="text"
+                                placeholder="math, algebra, online"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm"
+                                value={formData.tags}
+                                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                            />
                         </div>
 
                         <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">

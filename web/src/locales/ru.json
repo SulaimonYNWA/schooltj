@@ -1,0 +1,68 @@
+{
+    "nav": {
+        "dashboard": "Панель управления",
+        "teachers": "Учителя",
+        "courses": "Курсы",
+        "schools": "Школы",
+        "timetable": "Расписание",
+        "grades": "Оценки",
+        "homework": "Домашние задания",
+        "students": "Студенты",
+        "attendance": "Посещаемость",
+        "payments": "Платежи",
+        "announcements": "Объявления",
+        "messages": "Сообщения",
+        "notifications": "Уведомления",
+        "reports": "Отчеты",
+        "profile": "Профиль",
+        "settings": "Настройки"
+    },
+    "common": {
+        "save": "Сохранить",
+        "cancel": "Отмена",
+        "edit": "Редактировать",
+        "delete": "Удалить",
+        "loading": "Загрузка...",
+        "search": "Поиск",
+        "actions": "Действия"
+    },
+    "auth": {
+        "login": "Войти",
+        "signup": "Регистрация",
+        "email": "Электронная почта",
+        "password": "Пароль",
+        "logout": "Выйти"
+    },
+    "dashboard": {
+        "title": "Панель управления",
+        "student_title": "Панель студента",
+        "welcome": "Добро пожаловать, {{name}}",
+        "stats": {
+            "total_students": "Всего студентов",
+            "active_courses": "Активные курсы",
+            "revenue": "Доход",
+            "teachers": "Учителя",
+            "active_enrollments": "Активные записи",
+            "avg_attendance": "Сред. посещаемость",
+            "recent_payments": "Последние платежи",
+            "pending_requests": "Ожидающие запросы",
+            "invitations": "Приглашения"
+        },
+        "activity": {
+            "title": "Последние действия",
+            "no_activity": "Действий пока нет."
+        },
+        "announcements": {
+            "title": "Последние объявления",
+            "no_announcements": "Обявлений пока нет."
+        },
+        "assignments": {
+            "upcoming": "Предстоящие задания",
+            "no_assignments": "Предстоящих заданий нет."
+        },
+        "notifications": {
+            "recent": "Последние уведомления",
+            "all_caught_up": "Вы все прочитали!"
+        }
+    }
+}

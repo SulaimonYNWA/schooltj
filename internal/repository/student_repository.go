@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/schooltj/internal/domain"
 )
 
@@ -260,4 +261,80 @@ func (r *StudentRepository) SearchStudentSuggestions(ctx context.Context, query 
 		students = append(students, u)
 	}
 	return students, nil
+}
+
+// Progress Tracking
+func (r *StudentRepository) MarkTopicComplete(ctx context.Context, studentID, topicID string) error {
+	query := `INSERT INTO topic_completions (student_user_id, topic_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE completed_at = NOW()`
+	_, err := r.DB.ExecContext(ctx, query, studentID, topicID)
+	return err
+}
+
+func (r *StudentRepository) UnmarkTopicComplete(ctx context.Context, studentID, topicID string) error {
+	query := `DELETE FROM topic_completions WHERE student_user_id = ? AND topic_id = ?`
+	_, err := r.DB.ExecContext(ctx, query, studentID, topicID)
+	return err
+}
+
+func (r *StudentRepository) GetCompletedTopics(ctx context.Context, studentID, courseID string) ([]string, error) {
+	query := `
+		SELECT tc.topic_id 
+		FROM topic_completions tc
+		JOIN course_curriculum_topics cct ON tc.topic_id = cct.id
+		WHERE tc.student_user_id = ? AND cct.course_id = ?
+	`
+	rows, err := r.DB.QueryContext(ctx, query, studentID, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var topicIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		topicIDs = append(topicIDs, id)
+	}
+	return topicIDs, nil
+}
+
+func (r *StudentRepository) GetCourseProgress(ctx context.Context, studentID, courseID string) (float64, error) {
+	query := `
+		SELECT 
+			COALESCE(
+				(SELECT COUNT(*) FROM topic_completions tc 
+				 JOIN course_curriculum_topics cct ON tc.topic_id = cct.id 
+				 WHERE tc.student_user_id = ? AND cct.course_id = ?) * 100.0 / 
+				NULLIF((SELECT COUNT(*) FROM course_curriculum_topics WHERE course_id = ?), 0),
+				0
+			) as progress
+	`
+	var progress float64
+	err := r.DB.QueryRowContext(ctx, query, studentID, courseID, courseID).Scan(&progress)
+	return progress, err
+}
+
+// Certificate Management
+func (r *StudentRepository) IssueCertificate(ctx context.Context, cert *domain.Certificate) error {
+	if cert.ID == "" {
+		cert.ID = uuid.New().String()
+	}
+	query := `INSERT INTO course_certificates (id, student_user_id, course_id, certificate_url) VALUES (?, ?, ?, ?)`
+	_, err := r.DB.ExecContext(ctx, query, cert.ID, cert.StudentUserID, cert.CourseID, cert.CertificateURL)
+	return err
+}
+
+func (r *StudentRepository) GetCertificate(ctx context.Context, studentID, courseID string) (*domain.Certificate, error) {
+	query := `SELECT id, student_user_id, course_id, issued_at, certificate_url FROM course_certificates WHERE student_user_id = ? AND course_id = ?`
+	var c domain.Certificate
+	err := r.DB.QueryRowContext(ctx, query, studentID, courseID).Scan(&c.ID, &c.StudentUserID, &c.CourseID, &c.IssuedAt, &c.CertificateURL)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &c, nil
 }

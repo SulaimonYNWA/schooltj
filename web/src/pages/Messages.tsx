@@ -23,6 +23,27 @@ export default function Messages() {
     const searchRef = useRef<HTMLDivElement>(null);
     const location = useLocation();
     const navigate = useNavigate();
+    const [isConnected, setIsConnected] = useState(false);
+
+    // SSE connection for real-time message push
+    useEffect(() => {
+        const token = localStorage.getItem('token') || '';
+        const url = `/api/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+        const es = new EventSource(url);
+
+        es.onopen = () => setIsConnected(true);
+        es.onerror = () => setIsConnected(false);
+
+        es.addEventListener('message', () => {
+            qc.invalidateQueries({ queryKey: ['conversations'] });
+            if (activeChat) {
+                qc.invalidateQueries({ queryKey: ['messages', activeChat] });
+            }
+        });
+
+        return () => es.close();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeChat]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -44,7 +65,8 @@ export default function Messages() {
         queryKey: ['messages', activeChat],
         queryFn: () => api.get(`/api/messages/${activeChat}`).then(r => r.data),
         enabled: !!activeChat,
-        refetchInterval: 5000,
+        // SSE triggers invalidation instead of polling, but keep a slow fallback
+        refetchInterval: isConnected ? false : 5000,
     });
 
     const { data: searchResults = [] } = useQuery<UserResult[]>({

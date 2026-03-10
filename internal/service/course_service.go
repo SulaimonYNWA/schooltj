@@ -29,13 +29,28 @@ func NewCourseService(courseRepo *repository.CourseRepository, schoolRepo *repos
 	}
 }
 
-func (s *CourseService) CreateCourse(ctx context.Context, creatorID string, role domain.Role, title, description string, schedule *domain.Schedule, price float64, language string, teacherID *string) (*domain.Course, error) {
+func (s *CourseService) CreateCourse(
+	ctx context.Context,
+	creatorID string,
+	role domain.Role,
+	title, description string,
+	schedule *domain.Schedule,
+	price float64,
+	language string,
+	categoryID *string,
+	difficulty string,
+	tags []string,
+	teacherID *string,
+) (*domain.Course, error) {
 	course := &domain.Course{
 		Title:       title,
 		Description: description,
 		Schedule:    schedule,
 		Price:       price,
 		Language:    language,
+		CategoryID:  categoryID,
+		Difficulty:  difficulty,
+		Tags:        tags,
 	}
 
 	if role == domain.RoleTeacher {
@@ -81,6 +96,11 @@ func (s *CourseService) CreateCourse(ctx context.Context, creatorID string, role
 
 	if err := s.courseRepo.CreateCourse(ctx, course); err != nil {
 		return nil, err
+	}
+
+	// Add tags
+	for _, tag := range tags {
+		_ = s.courseRepo.AddTagToCourse(ctx, course.ID, tag)
 	}
 
 	return course, nil
@@ -202,6 +222,20 @@ func (s *CourseService) InviteStudent(ctx context.Context, inviterID string, rol
 		}
 	}
 
+	// 7. Notify the invited student
+	inviter, _ := s.userRepo.GetUserByID(ctx, inviterID)
+	inviterName := "A teacher"
+	if inviter != nil && inviter.Name != "" {
+		inviterName = inviter.Name
+	}
+	_ = s.notificationRepo.Create(ctx, &domain.Notification{
+		UserID:  studentUser.ID,
+		Type:    "course_invitation",
+		Title:   "Course Invitation",
+		Message: fmt.Sprintf("%s invited you to join %s", inviterName, course.Title),
+		Link:    fmt.Sprintf("/courses/%s", courseID),
+	})
+
 	return nil
 }
 
@@ -312,7 +346,32 @@ func (s *CourseService) RespondToInvitation(ctx context.Context, studentID, enro
 }
 
 func (s *CourseService) GetStudentEnrollments(ctx context.Context, studentID string) ([]repository.EnrollmentWithCourse, error) {
-	return s.courseRepo.GetStudentEnrollmentsWithCourse(ctx, studentID)
+	enrollments, err := s.courseRepo.GetStudentEnrollmentsWithCourse(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate progress for each enrollment
+	for i := range enrollments {
+		progress, err := s.studentRepo.GetCourseProgress(ctx, studentID, enrollments[i].Course.ID)
+		if err == nil {
+			enrollments[i].Enrollment.Progress = progress
+		}
+	}
+
+	return enrollments, nil
+}
+
+func (s *CourseService) MarkTopicComplete(ctx context.Context, studentID, topicID string) error {
+	return s.studentRepo.MarkTopicComplete(ctx, studentID, topicID)
+}
+
+func (s *CourseService) UnmarkTopicComplete(ctx context.Context, studentID, topicID string) error {
+	return s.studentRepo.UnmarkTopicComplete(ctx, studentID, topicID)
+}
+
+func (s *CourseService) GetCourseProgress(ctx context.Context, studentID, courseID string) (float64, error) {
+	return s.studentRepo.GetCourseProgress(ctx, studentID, courseID)
 }
 
 func (s *CourseService) GetCourseEnrollments(ctx context.Context, userID string, role domain.Role, courseID string) ([]*domain.Enrollment, error) {
@@ -433,7 +492,22 @@ func (s *CourseService) GetCourseByID(ctx context.Context, id string) (*domain.C
 	return s.courseRepo.GetCourseByIDWithDetails(ctx, id)
 }
 
-func (s *CourseService) UpdateCourse(ctx context.Context, userID string, role domain.Role, courseID, title, description string, schedule *domain.Schedule, price float64, language string) (*domain.Course, error) {
+func (s *CourseService) ListCategories(ctx context.Context) ([]*domain.Category, error) {
+	return s.courseRepo.ListCategories(ctx)
+}
+
+func (s *CourseService) UpdateCourse(
+	ctx context.Context,
+	userID string,
+	role domain.Role,
+	courseID, title, description string,
+	schedule *domain.Schedule,
+	price float64,
+	language string,
+	categoryID *string,
+	difficulty string,
+	tags []string,
+) (*domain.Course, error) {
 	// Get existing course to verify ownership
 	course, err := s.courseRepo.GetCourseByID(ctx, courseID)
 	if err != nil {
@@ -472,6 +546,11 @@ func (s *CourseService) UpdateCourse(ctx context.Context, userID string, role do
 	if language != "" {
 		course.Language = language
 	}
+	course.CategoryID = categoryID
+	if difficulty != "" {
+		course.Difficulty = difficulty
+	}
+	course.Tags = tags
 
 	if err := s.courseRepo.UpdateCourse(ctx, course); err != nil {
 		return nil, err

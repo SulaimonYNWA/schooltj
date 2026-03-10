@@ -88,6 +88,10 @@ func (h *AttendanceHandler) GetCourseRoster(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "failed to fetch roster", http.StatusInternalServerError)
 		return
 	}
+	if roster == nil {
+		w.Write([]byte("[]"))
+		return
+	}
 	json.NewEncoder(w).Encode(roster)
 }
 

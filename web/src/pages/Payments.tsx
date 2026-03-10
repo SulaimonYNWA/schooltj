@@ -134,7 +134,7 @@ function AdminPaymentsView() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                     <p className="text-sm text-gray-500">Total Collected</p>
-                    <p className="text-2xl font-bold text-emerald-600 mt-1">${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">TJS {totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                     <p className="text-sm text-gray-500">Total Transactions</p>
@@ -143,7 +143,7 @@ function AdminPaymentsView() {
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                     <p className="text-sm text-gray-500">Average Payment</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">
-                        ${payments?.length ? (totalRevenue / payments.length).toFixed(2) : '0.00'}
+                        TJS {payments?.length ? (totalRevenue / payments.length).toFixed(2) : '0.00'}
                     </p>
                 </div>
             </div>
@@ -177,7 +177,7 @@ function AdminPaymentsView() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (TJS)</label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -306,7 +306,7 @@ function AdminPaymentsView() {
                                         </td>
                                         <td className="px-6 py-3.5 text-gray-600"><Link to={`/courses/${p.course_id}`} className="hover:text-indigo-600 hover:underline">{p.course_title}</Link></td>
                                         <td className="px-6 py-3.5 text-right font-semibold text-emerald-600">
-                                            ${p.amount.toFixed(2)}
+                                            TJS {p.amount.toFixed(2)}
                                         </td>
                                         <td className="px-6 py-3.5">
                                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${mc.color}`}>
@@ -368,7 +368,7 @@ function StudentPaymentsView() {
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
                 <p className="text-sm text-gray-500">Total Paid</p>
-                <p className="text-3xl font-bold text-emerald-600 mt-1">${totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                <p className="text-3xl font-bold text-emerald-600 mt-1">TJS {totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 <p className="text-xs text-gray-400 mt-1">{payments?.length || 0} transaction(s)</p>
             </div>
 
@@ -411,7 +411,7 @@ function StudentPaymentsView() {
                                                     <ImageIcon className="h-3 w-3" /> Receipt
                                                 </button>
                                             )}
-                                            <span className="text-lg font-bold text-emerald-600">${p.amount.toFixed(2)}</span>
+                                            <span className="text-lg font-bold text-emerald-600">TJS {p.amount.toFixed(2)}</span>
                                         </div>
                                     </div>
                                 </div>

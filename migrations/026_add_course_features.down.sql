@@ -1,0 +1,6 @@
+ALTER TABLE courses DROP COLUMN IF EXISTS category_id;
+ALTER TABLE courses DROP COLUMN IF EXISTS difficulty;
+
+DROP TABLE IF EXISTS course_tags;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS categories;

@@ -10,6 +10,7 @@ import CourseInvitationModal from '../components/CourseInvitationModal';
 import RatingModal from '../components/RatingModal';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface EnrollmentWithCourse {
     enrollment: {
@@ -144,6 +145,8 @@ export default function Dashboard() {
 
 // ─── Admin/Teacher Dashboard ────────────────────────────────────────────
 function AdminDashboard({ user }: { user: any }) {
+    const { t } = useTranslation();
+
     const { data: stats } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats'],
         queryFn: async () => {
@@ -169,17 +172,17 @@ function AdminDashboard({ user }: { user: any }) {
     });
 
     const statCards = [
-        { name: 'Total Students', value: stats?.total_students ?? 0, icon: Users, color: 'from-blue-500 to-blue-600', textColor: 'text-blue-600' },
-        { name: 'Active Courses', value: stats?.total_courses ?? 0, icon: BookOpen, color: 'from-emerald-500 to-emerald-600', textColor: 'text-emerald-600' },
-        { name: 'Revenue', value: formatTJS(stats?.total_revenue ?? 0), icon: DollarSign, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-600' },
-        { name: 'Teachers', value: stats?.total_teachers ?? 0, icon: GraduationCap, color: 'from-purple-500 to-purple-600', textColor: 'text-purple-600' },
+        { name: t('dashboard.stats.total_students'), value: stats?.total_students ?? 0, icon: Users, color: 'from-blue-500 to-blue-600', textColor: 'text-blue-600', link: '/students' },
+        { name: t('dashboard.stats.active_courses'), value: stats?.total_courses ?? 0, icon: BookOpen, color: 'from-emerald-500 to-emerald-600', textColor: 'text-emerald-600', link: '/courses' },
+        { name: t('dashboard.stats.revenue'), value: formatTJS(stats?.total_revenue ?? 0), icon: DollarSign, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-600', link: '/payments' },
+        { name: t('dashboard.stats.teachers'), value: stats?.total_teachers ?? 0, icon: GraduationCap, color: 'from-purple-500 to-purple-600', textColor: 'text-purple-600', link: '/teachers' },
     ];
 
     const miniStats = [
-        { name: 'Active Enrollments', value: stats?.active_enrolments ?? 0, icon: UserPlus },
-        { name: 'Avg Attendance', value: `${stats?.avg_attendance ?? 0}%`, icon: BarChart3 },
-        { name: 'Recent Payments', value: stats?.recent_payments ?? 0, icon: TrendingUp },
-        { name: 'Pending Requests', value: stats?.pending_requests ?? 0, icon: Clock },
+        { name: t('dashboard.stats.active_enrollments'), value: stats?.active_enrolments ?? 0, icon: UserPlus, link: '/courses' },
+        { name: t('dashboard.stats.avg_attendance'), value: `${stats?.avg_attendance ?? 0}%`, icon: BarChart3, link: '/attendance' },
+        { name: t('dashboard.stats.recent_payments'), value: stats?.recent_payments ?? 0, icon: TrendingUp, link: '/payments' },
+        { name: t('dashboard.stats.pending_requests'), value: stats?.pending_requests ?? 0, icon: Clock, link: '/courses' },
     ];
 
     // timeAgo imported from lib/utils
@@ -188,16 +191,16 @@ function AdminDashboard({ user }: { user: any }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
+                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{t('dashboard.title')}</h1>
                 <p className="mt-1 text-sm text-gray-500">
-                    Welcome back, <span className="font-medium text-gray-900">{user?.name || user?.email}</span>
+                    {t('dashboard.welcome', { name: user?.name || user?.email })}
                 </p>
             </div>
 
             {/* Primary Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
                 {statCards.map((item) => (
-                    <div key={item.name} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+                    <Link key={item.name} to={item.link} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-500">{item.name}</p>
@@ -207,20 +210,20 @@ function AdminDashboard({ user }: { user: any }) {
                                 <item.icon className="h-6 w-6 text-white" />
                             </div>
                         </div>
-                    </div>
+                    </Link>
                 ))}
             </div>
 
             {/* Mini Stats Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
                 {miniStats.map((item) => (
-                    <div key={item.name} className="bg-gray-50 rounded-lg border border-gray-100 px-4 py-3 flex items-center gap-3">
+                    <Link key={item.name} to={item.link} className="bg-gray-50 rounded-lg border border-gray-100 px-4 py-3 flex items-center gap-3 hover:bg-gray-100 hover:border-gray-200 transition-all cursor-pointer">
                         <item.icon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         <div>
                             <p className="text-xs text-gray-500">{item.name}</p>
                             <p className="text-sm font-bold text-gray-900">{item.value}</p>
                         </div>
-                    </div>
+                    </Link>
                 ))}
             </div>
 
@@ -231,11 +234,11 @@ function AdminDashboard({ user }: { user: any }) {
                     <div className="px-6 py-4 border-b border-gray-100">
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                             <TrendingUp className="h-4 w-4 text-gray-400" />
-                            Recent Activity
+                            {t('dashboard.activity.title')}
                         </h3>
                     </div>
                     {!activity?.length ? (
-                        <div className="px-6 py-8 text-center text-gray-400 text-sm italic">No recent activity yet.</div>
+                        <div className="px-6 py-8 text-center text-gray-400 text-sm italic">{t('dashboard.activity.no_activity')}</div>
                     ) : (
                         <div className="divide-y divide-gray-50">
                             {activity.map((item, i) => {
@@ -262,11 +265,11 @@ function AdminDashboard({ user }: { user: any }) {
                     <div className="px-6 py-4 border-b border-gray-100">
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                             <Megaphone className="h-4 w-4 text-gray-400" />
-                            Latest Announcements
+                            {t('dashboard.announcements.title')}
                         </h3>
                     </div>
                     {!announcements?.length ? (
-                        <div className="px-6 py-8 text-center text-gray-400 text-sm italic">No announcements yet.</div>
+                        <div className="px-6 py-8 text-center text-gray-400 text-sm italic">{t('dashboard.announcements.no_announcements')}</div>
                     ) : (
                         <div className="divide-y divide-gray-50">
                             {announcements.slice(0, 5).map(a => (
@@ -307,6 +310,7 @@ function StudentDashboard({
     onAcceptInvitation, onRejectInvitation, isProcessing,
     ratingTarget, isRatingModalOpen, onCloseRating, onRatingSuccess,
 }: any) {
+    const { t } = useTranslation();
     const invitations = enrollments?.filter((e: any) => e.enrollment.status === 'invited') || [];
     const activeCourses = enrollments?.filter((e: any) => e.enrollment.status === 'active') || [];
 
@@ -359,58 +363,58 @@ function StudentDashboard({
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Student Dashboard</h1>
+                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{t('dashboard.student_title')}</h1>
                 <p className="mt-1 text-sm text-gray-500">
-                    Welcome back, <span className="font-medium text-gray-900">{user?.name || user?.email}</span>
+                    {t('dashboard.welcome', { name: user?.name || user?.email })}
                 </p>
             </div>
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <Link to="/courses" className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
                             <BookOpen className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500">Active Courses</p>
+                            <p className="text-xs text-gray-500">{t('dashboard.stats.active_courses')}</p>
                             <p className="text-xl font-bold text-gray-900">{activeCourses.length}</p>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                </Link>
+                <Link to="/notifications" className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
                             <Clock className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500">Invitations</p>
+                            <p className="text-xs text-gray-500">{t('dashboard.stats.invitations')}</p>
                             <p className="text-xl font-bold text-gray-900">{invitations.length}</p>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                </Link>
+                <Link to="/attendance" className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
                             <Calendar className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500">Attendance</p>
+                            <p className="text-xs text-gray-500">{t('dashboard.stats.avg_attendance')}</p>
                             <p className={`text-xl font-bold ${overallAttendance >= 80 ? 'text-emerald-600' : overallAttendance >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>{overallAttendance}%</p>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                </Link>
+                <Link to="/announcements" className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                             <Megaphone className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500">Announcements</p>
+                            <p className="text-xs text-gray-500">{t('dashboard.announcements.title')}</p>
                             <p className="text-xl font-bold text-gray-900">{announcements?.length || 0}</p>
                         </div>
                     </div>
-                </div>
+                </Link>
             </div>
 
             {/* Notifications + Upcoming Assignments Row */}
@@ -420,17 +424,17 @@ function StudentDashboard({
                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                             <Bell className="h-4 w-4 text-gray-400" />
-                            Recent Notifications
+                            {t('dashboard.notifications.recent')}
                             {unreadNotifications.length > 0 && (
                                 <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                                     {unreadNotifications.length}
                                 </span>
                             )}
                         </h3>
-                        <Link to="/notifications" className="text-xs text-indigo-600 hover:underline">View all</Link>
+                        <Link to="/notifications" className="text-xs text-indigo-600 hover:underline">{t('common.view_all')}</Link>
                     </div>
                     {unreadNotifications.length === 0 ? (
-                        <div className="px-6 py-6 text-center text-gray-400 text-sm italic">All caught up!</div>
+                        <div className="px-6 py-6 text-center text-gray-400 text-sm italic">{t('dashboard.notifications.all_caught_up')}</div>
                     ) : (
                         <div className="divide-y divide-gray-50">
                             {unreadNotifications.map((n: any) => (
@@ -449,9 +453,9 @@ function StudentDashboard({
                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                             <ClipboardList className="h-4 w-4 text-gray-400" />
-                            Upcoming Assignments
+                            {t('dashboard.assignments.upcoming')}
                         </h3>
-                        <Link to="/homework" className="text-xs text-indigo-600 hover:underline">View all</Link>
+                        <Link to="/homework" className="text-xs text-indigo-600 hover:underline">{t('common.view_all')}</Link>
                     </div>
                     {upcomingAssignments.length === 0 ? (
                         <div className="px-6 py-6 text-center text-gray-400 text-sm italic">No upcoming assignments</div>

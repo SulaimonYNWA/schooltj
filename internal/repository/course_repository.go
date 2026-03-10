@@ -32,23 +32,43 @@ func (r *CourseRepository) CreateCourse(ctx context.Context, course *domain.Cour
 		}
 	}
 
-	query := `INSERT INTO courses (id, title, description, schedule, school_id, teacher_id, price, cover_image_url, language, created_at, updated_at) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
-	_, err := r.DB.ExecContext(ctx, query, course.ID, course.Title, course.Description, scheduleJSON, course.SchoolID, course.TeacherID, course.Price, course.CoverImageURL, course.Language)
+	query := `INSERT INTO courses (id, title, description, schedule, school_id, teacher_id, price, cover_image_url, language, category_id, difficulty, created_at, updated_at) 
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+	_, err := r.DB.ExecContext(ctx, query, course.ID, course.Title, course.Description, scheduleJSON, course.SchoolID, course.TeacherID, course.Price, course.CoverImageURL, course.Language, course.CategoryID, course.Difficulty)
 	return err
 }
 
 func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domain.Course, error) {
-	query := `SELECT id, title, description, schedule, school_id, teacher_id, price, cover_image_url, language, created_at, updated_at FROM courses WHERE id = ?`
+	query := `
+		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language,
+		       c.category_id, cat.name as category_name, c.difficulty, c.created_at, c.updated_at,
+		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
+		       COALESCE(u.email, '') as teacher_email,
+		       u.avatar_url,
+		       COALESCE(s.name, '') as school_name
+		FROM courses c
+		LEFT JOIN users u ON c.teacher_id = u.id
+		LEFT JOIN schools s ON c.school_id = s.id
+		LEFT JOIN categories cat ON c.category_id = cat.id
+		WHERE c.id = ?
+	`
 	row := r.DB.QueryRowContext(ctx, query, id)
 
 	var course domain.Course
 	var schoolID sql.NullString
 	var teacherID sql.NullString
-	var scheduleRaw sql.NullString
+	var scheduleJSON []byte
 	var coverImageURL sql.NullString
+	var teacherName sql.NullString
+	var teacherEmail sql.NullString
+	var avatarURL sql.NullString
+	var schoolName sql.NullString
+	var catID sql.NullString
+	var catName sql.NullString
 
-	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleRaw, &schoolID, &teacherID, &course.Price, &coverImageURL, &course.Language, &course.CreatedAt, &course.UpdatedAt)
+	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
+		&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt,
+		&teacherName, &teacherEmail, &avatarURL, &schoolName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCourseNotFound
@@ -58,17 +78,27 @@ func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domai
 
 	if schoolID.Valid {
 		course.SchoolID = &schoolID.String
+		course.SchoolName = schoolName.String
 	}
 	if teacherID.Valid {
 		course.TeacherID = &teacherID.String
+		course.TeacherName = teacherName.String
+		course.TeacherEmail = teacherEmail.String
+		if avatarURL.Valid {
+			course.TeacherAvatar = &avatarURL.String
+		}
 	}
 	if coverImageURL.Valid {
 		course.CoverImageURL = &coverImageURL.String
 	}
+	if catID.Valid {
+		course.CategoryID = &catID.String
+		course.CategoryName = catName.String
+	}
 
-	if scheduleRaw.Valid && scheduleRaw.String != "" {
+	if len(scheduleJSON) > 0 {
 		var sched domain.Schedule
-		if err := json.Unmarshal([]byte(scheduleRaw.String), &sched); err == nil {
+		if err := json.Unmarshal(scheduleJSON, &sched); err == nil {
 			course.Schedule = &sched
 		}
 	}
@@ -77,8 +107,11 @@ func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domai
 }
 
 type CourseFilter struct {
-	SchoolID  *string
-	TeacherID *string
+	SchoolID   *string
+	TeacherID  *string
+	CategoryID *string
+	Difficulty *string
+	Tag        *string
 }
 
 func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter) ([]*domain.Course, error) {
@@ -93,9 +126,22 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		conditions = append(conditions, "c.teacher_id = ?")
 		args = append(args, *filter.TeacherID)
 	}
+	if filter.CategoryID != nil {
+		conditions = append(conditions, "c.category_id = ?")
+		args = append(args, *filter.CategoryID)
+	}
+	if filter.Difficulty != nil {
+		conditions = append(conditions, "c.difficulty = ?")
+		args = append(args, *filter.Difficulty)
+	}
+	if filter.Tag != nil {
+		conditions = append(conditions, "EXISTS (SELECT 1 FROM course_tags ct JOIN tags t ON ct.tag_id = t.id WHERE ct.course_id = c.id AND t.name = ?)")
+		args = append(args, *filter.Tag)
+	}
 
 	query := `
-		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, c.created_at, c.updated_at,
+		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, 
+		       c.category_id, cat.name as category_name, c.difficulty, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
 			   u.avatar_url,
@@ -103,6 +149,7 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		FROM courses c
 		LEFT JOIN users u ON c.teacher_id = u.id
 		LEFT JOIN schools s ON c.school_id = s.id
+		LEFT JOIN categories cat ON c.category_id = cat.id
 	`
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
@@ -127,8 +174,11 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		var coverImageURL sql.NullString
 		var schoolName sql.NullString
 
+		var catID sql.NullString
+		var catName sql.NullString
+
 		if err := rows.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
-			&course.Price, &coverImageURL, &course.Language, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName); err != nil {
+			&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName); err != nil {
 			return nil, err
 		}
 
@@ -153,6 +203,10 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		}
 		if coverImageURL.Valid {
 			course.CoverImageURL = &coverImageURL.String
+		}
+		if catID.Valid {
+			course.CategoryID = &catID.String
+			course.CategoryName = catName.String
 		}
 
 		courses = append(courses, &course)
@@ -364,8 +418,8 @@ func (r *CourseRepository) UpdateCourse(ctx context.Context, course *domain.Cour
 		}
 	}
 
-	query := `UPDATE courses SET title = ?, description = ?, schedule = ?, price = ?, language = ?, updated_at = NOW() WHERE id = ?`
-	result, err := r.DB.ExecContext(ctx, query, course.Title, course.Description, scheduleJSON, course.Price, course.Language, course.ID)
+	query := `UPDATE courses SET title = ?, description = ?, schedule = ?, price = ?, language = ?, category_id = ?, difficulty = ?, updated_at = NOW() WHERE id = ?`
+	result, err := r.DB.ExecContext(ctx, query, course.Title, course.Description, scheduleJSON, course.Price, course.Language, course.CategoryID, course.Difficulty, course.ID)
 	if err != nil {
 		return err
 	}
@@ -396,7 +450,8 @@ func (r *CourseRepository) DeleteCourse(ctx context.Context, id string) error {
 
 func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id string) (*domain.Course, error) {
 	query := `
-		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, c.created_at, c.updated_at,
+		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, 
+		       c.category_id, cat.name as category_name, c.difficulty, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
 			   u.avatar_url,
@@ -404,6 +459,7 @@ func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id stri
 		FROM courses c
 		LEFT JOIN users u ON c.teacher_id = u.id
 		LEFT JOIN schools s ON c.school_id = s.id
+		LEFT JOIN categories cat ON c.category_id = cat.id
 		WHERE c.id = ?
 	`
 	row := r.DB.QueryRowContext(ctx, query, id)
@@ -418,8 +474,11 @@ func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id stri
 	var coverImageURL sql.NullString
 	var schoolName sql.NullString
 
+	var catID sql.NullString
+	var catName sql.NullString
+
 	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
-		&course.Price, &coverImageURL, &course.Language, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName)
+		&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCourseNotFound
@@ -449,6 +508,82 @@ func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id stri
 	if coverImageURL.Valid {
 		course.CoverImageURL = &coverImageURL.String
 	}
+	if catID.Valid {
+		course.CategoryID = &catID.String
+		course.CategoryName = catName.String
+	}
+
+	// Fetch tags
+	tags, _ := r.GetCourseTags(ctx, id)
+	course.Tags = tags
 
 	return &course, nil
+}
+
+// Category Management
+func (r *CourseRepository) CreateCategory(ctx context.Context, cat *domain.Category) error {
+	cat.ID = uuid.New().String()
+	query := `INSERT INTO categories (id, name, slug) VALUES (?, ?, ?)`
+	_, err := r.DB.ExecContext(ctx, query, cat.ID, cat.Name, cat.Slug)
+	return err
+}
+
+func (r *CourseRepository) ListCategories(ctx context.Context) ([]*domain.Category, error) {
+	query := `SELECT id, name, slug, created_at FROM categories ORDER BY name ASC`
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cats []*domain.Category
+	for rows.Next() {
+		var c domain.Category
+		if err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		cats = append(cats, &c)
+	}
+	return cats, nil
+}
+
+// Tag Management
+func (r *CourseRepository) GetCourseTags(ctx context.Context, courseID string) ([]string, error) {
+	query := `SELECT t.name FROM tags t JOIN course_tags ct ON t.id = ct.tag_id WHERE ct.course_id = ?`
+	rows, err := r.DB.QueryContext(ctx, query, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		tags = append(tags, name)
+	}
+	return tags, nil
+}
+
+func (r *CourseRepository) AddTagToCourse(ctx context.Context, courseID, tagName string) error {
+	// 1. Get or create tag
+	var tagID string
+	err := r.DB.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = ?", tagName).Scan(&tagID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			tagID = uuid.New().String()
+			_, err = r.DB.ExecContext(ctx, "INSERT INTO tags (id, name) VALUES (?, ?)", tagID, tagName)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	// 2. Link tag to course
+	_, err = r.DB.ExecContext(ctx, "INSERT INTO course_tags (course_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING", courseID, tagID)
+	return err
 }

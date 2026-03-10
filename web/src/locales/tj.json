@@ -1,0 +1,68 @@
+{
+    "nav": {
+        "dashboard": "Дашборд",
+        "teachers": "Омӯзгорон",
+        "courses": "Курсҳо",
+        "schools": "Мактабҳо",
+        "timetable": "Ҷадвал",
+        "grades": "Баҳоҳо",
+        "homework": "Корҳои хонагӣ",
+        "students": "Донишҷӯён",
+        "attendance": "Давомот",
+        "payments": "Пардохтҳо",
+        "announcements": "Эълонҳо",
+        "messages": "Паёмҳо",
+        "notifications": "Огоҳиҳо",
+        "reports": "Ҳисоботҳо",
+        "profile": "Профил",
+        "settings": "Танзимот"
+    },
+    "common": {
+        "save": "Захира",
+        "cancel": "Бекор кардан",
+        "edit": "Таҳрир",
+        "delete": "Ҳазф",
+        "loading": "Боргузорӣ...",
+        "search": "Ҷустуҷӯ",
+        "actions": "Амалҳо"
+    },
+    "auth": {
+        "login": "Ворид шудан",
+        "signup": "Бақайдгирӣ",
+        "email": "Почтаи электронӣ",
+        "password": "Рамз",
+        "logout": "Баромадан"
+    },
+    "dashboard": {
+        "title": "Дашборд",
+        "student_title": "Дашборди донишҷӯ",
+        "welcome": "Хуш омадед, {{name}}",
+        "stats": {
+            "total_students": "Шумораи донишҷӯён",
+            "active_courses": "Курсҳои фаъол",
+            "revenue": "Даромад",
+            "teachers": "Омӯзгорон",
+            "active_enrollments": "Аъзогии фаъол",
+            "avg_attendance": "Давомоти миёна",
+            "recent_payments": "Пардохтҳои охирин",
+            "pending_requests": "Дархостҳои интизорӣ",
+            "invitations": "Даъватномаҳо"
+        },
+        "activity": {
+            "title": "Фаъолияти охирин",
+            "no_activity": "Ҳанӯз фаъолияти охирин нест."
+        },
+        "announcements": {
+            "title": "Эълонҳои охирин",
+            "no_announcements": "Ҳанӯз эълон нест."
+        },
+        "assignments": {
+            "upcoming": "Корҳои хонагии навбатӣ",
+            "no_assignments": "Ҳанӯз кори хонагӣ нест."
+        },
+        "notifications": {
+            "recent": "Огоҳиҳои охирин",
+            "all_caught_up": "Ҳамааш хонда шуд!"
+        }
+    }
+}

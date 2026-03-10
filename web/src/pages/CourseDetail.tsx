@@ -7,7 +7,7 @@ import {
     BookOpen, Users, Star, MapPin, Calendar, Clock, Globe, Tag,
     ChevronDown, ChevronRight, Plus, Pencil, Trash2, Eye, EyeOff,
     GraduationCap, X, Check, ArrowLeft, ClipboardList, BarChart3,
-    Camera, UserPlus, Mail
+    Camera, UserPlus, Mail, CreditCard
 } from 'lucide-react';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
@@ -34,6 +34,10 @@ interface Course {
     teacher_avatar?: string;
     cover_image_url?: string;
     language?: string;
+    category_id?: string;
+    category_name?: string;
+    difficulty?: string;
+    tags?: string[];
     price: number;
     created_at: string;
 }
@@ -46,6 +50,7 @@ interface Topic {
     sort_order: number;
     visible: boolean;
     created_at: string;
+    is_completed?: boolean;
 }
 
 interface RosterStudent {
@@ -85,6 +90,7 @@ interface Enrollment {
     course_id: string;
     enrolled_at: string;
     status: string;
+    progress?: number;
 }
 
 interface EnrollmentWithCourse {
@@ -105,7 +111,14 @@ export default function CourseDetail() {
     const [uploadingCover, setUploadingCover] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteSearch, setInviteSearch] = useState('');
+    const [suggestions, setSuggestions] = useState<{ id: string; name: string; email: string }[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isPaying, setIsPaying] = useState(false);
 
+
+    const isTeacher = user?.role === 'teacher';
+    const isSchoolAdmin = user?.role === 'school_admin';
 
     const { data: course, isLoading } = useQuery<Course>({
         queryKey: ['course', id],
@@ -115,20 +128,26 @@ export default function CourseDetail() {
 
     const { data: topics = [] } = useQuery<Topic[]>({
         queryKey: ['course-topics', id],
-        queryFn: () => api.get(`/api/courses/${id}/curriculum`).then(r => r.data),
+        queryFn: () => api.get(`/api/courses/${id}/curriculum`).then(r => r.data || []),
         enabled: !!id,
     });
 
     const { data: roster = [] } = useQuery<RosterStudent[]>({
         queryKey: ['course-roster', id],
-        queryFn: () => api.get(`/api/courses/${id}/roster`).then(r => r.data),
-        enabled: !!id && (activeTab === 'students' || activeTab === 'attendance'),
+        queryFn: () => api.get(`/api/courses/${id}/roster`).then(r => r.data || []),
+        enabled: !!id,
     });
 
     const { data: grades = [] } = useQuery<Grade[]>({
         queryKey: ['course-grades', id],
-        queryFn: () => api.get(`/api/courses/${id}/grades`).then(r => r.data),
-        enabled: !!id && activeTab === 'grades',
+        queryFn: () => api.get(`/api/courses/${id}/grades`).then(r => r.data || []),
+        enabled: !!id && (isTeacher || isSchoolAdmin),
+    });
+
+    const { data: enrollments = [] } = useQuery<{ id: string; student_user_id: string; student_name: string; student_avatar?: string; status: string }[]>({
+        queryKey: ['course-enrollments', id],
+        queryFn: () => api.get(`/api/courses/${id}/enrollments`).then(r => r.data || []),
+        enabled: !!id && (isTeacher || isSchoolAdmin),
     });
 
     const { data: attendance = [] } = useQuery<AttendanceRecord[]>({
@@ -165,6 +184,34 @@ export default function CourseDetail() {
         mutationFn: (topicId: string) => api.delete(`/api/courses/${id}/curriculum/${topicId}`),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course-topics', id] });
+        },
+    });
+
+    const toggleTopicCompleteMutation = useMutation({
+        mutationFn: async (vars: { topicId: string, isCompleted: boolean }) => {
+            if (vars.isCompleted) {
+                return api.delete(`/api/topics/${vars.topicId}/complete`);
+            } else {
+                return api.post(`/api/topics/${vars.topicId}/complete`);
+            }
+        },
+        onMutate: async (vars) => {
+            // Optimistic update: toggle topic completion immediately
+            await queryClient.cancelQueries({ queryKey: ['course-topics', id] });
+            const prevTopics = queryClient.getQueryData<Topic[]>(['course-topics', id]);
+            queryClient.setQueryData<Topic[]>(['course-topics', id], old =>
+                (old || []).map(t => t.id === vars.topicId ? { ...t, is_completed: !vars.isCompleted } : t)
+            );
+            return { prevTopics };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.prevTopics) {
+                queryClient.setQueryData(['course-topics', id], context.prevTopics);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['course-topics', id] });
+            queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
         },
     });
 
@@ -206,15 +253,72 @@ export default function CourseDetail() {
         }
     };
 
+    const handleInviteSearch = async (query: string) => {
+        setInviteSearch(query);
+        setInviteEmail('');
+        if (query.length < 2) {
+            setSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+        try {
+            const res = await api.get(`/api/students/suggestions?q=${encodeURIComponent(query)}`);
+            setSuggestions(res.data || []);
+            setShowSuggestions(true);
+        } catch {
+            setSuggestions([]);
+        }
+    };
+
+    const handleSelectStudent = (student: { id: string; name: string; email: string }) => {
+        setInviteEmail(student.email);
+        setInviteSearch(student.name);
+        setShowSuggestions(false);
+    };
+
     const handleInvite = async () => {
         if (!inviteEmail.trim()) return;
         try {
             await api.post(`/api/courses/${id}/invite`, { email: inviteEmail });
             setInviteEmail('');
+            setInviteSearch('');
+            setSuggestions([]);
             setShowInvite(false);
             queryClient.invalidateQueries({ queryKey: ['course-roster', id] });
+            queryClient.invalidateQueries({ queryKey: ['course-enrollments', id] });
         } catch (err: any) {
             alert('Failed to invite: ' + (err.response?.data || err.message));
+        }
+    };
+
+    const approveEnrollment = useMutation({
+        mutationFn: ({ enrollmentId, approve }: { enrollmentId: string; approve: boolean }) =>
+            api.post(`/api/enrollments/${enrollmentId}/approve`, { approve }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['course-enrollments', id] });
+            queryClient.invalidateQueries({ queryKey: ['course-roster', id] });
+        },
+        onError: (err: any) => {
+            alert('Failed to update request: ' + (err.response?.data || err.message));
+        }
+    });
+
+    const handlePay = async (provider: string) => {
+        if (!course) return;
+        setIsPaying(true);
+        try {
+            const res = await api.post('/api/payments/initiate', {
+                course_id: id,
+                amount: course.price,
+                provider: provider,
+            });
+            if (res.data.redirect_url) {
+                window.location.href = res.data.redirect_url;
+            }
+        } catch (err: any) {
+            alert('Payment execution failed: ' + (err.response?.data || err.message));
+        } finally {
+            setIsPaying(false);
         }
     };
 
@@ -320,6 +424,24 @@ export default function CourseDetail() {
                                 </div>
                             </div>
                         )}
+                        {course.category_name && (
+                            <div className="flex items-center gap-2">
+                                <BookOpen className="h-4 w-4 text-indigo-300" />
+                                <div>
+                                    <div className="text-xs text-indigo-300">Category</div>
+                                    <span className="text-sm text-white">{course.category_name}</span>
+                                </div>
+                            </div>
+                        )}
+                        {course.difficulty && (
+                            <div className="flex items-center gap-2">
+                                <GraduationCap className="h-4 w-4 text-indigo-300" />
+                                <div>
+                                    <div className="text-xs text-indigo-300">Difficulty</div>
+                                    <span className="text-sm text-white capitalize">{course.difficulty}</span>
+                                </div>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2">
                             <Tag className="h-4 w-4 text-indigo-300" />
                             <div>
@@ -328,6 +450,17 @@ export default function CourseDetail() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Tags */}
+                    {course.tags && course.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                            {course.tags.map(tag => (
+                                <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-indigo-500/20 text-indigo-100 border border-indigo-500/30">
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Schedule */}
                     {course.schedule && (
@@ -379,6 +512,16 @@ export default function CourseDetail() {
                                 </button>
                             </>
                         )}
+                        {isStudent && !enrollment && (
+                            <button
+                                onClick={() => handlePay('alif')}
+                                disabled={isPaying}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
+                            >
+                                <CreditCard className="h-4 w-4" />
+                                {isPaying ? 'Redirecting...' : 'Pay with Alif Mobi'}
+                            </button>
+                        )}
                         {isStudent && enrollment?.status === 'active' && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 text-emerald-100 text-sm font-medium rounded-lg">
                                 <Check className="h-4 w-4" /> Enrolled
@@ -394,25 +537,81 @@ export default function CourseDetail() {
                         )}
                     </div>
 
-                    {/* Inline Invite Form */}
+                    {/* Inline Invite Form with Autocomplete */}
                     {showInvite && (
-                        <div className="flex gap-2 mt-3">
-                            <input
-                                type="email"
-                                placeholder="student@email.com"
-                                value={inviteEmail}
-                                onChange={e => setInviteEmail(e.target.value)}
-                                className="flex-1 rounded-lg border-0 bg-white/15 text-white placeholder-indigo-200 px-3 py-2 text-sm focus:ring-2 focus:ring-white/30"
-                            />
-                            <button
-                                onClick={handleInvite}
-                                disabled={!inviteEmail.trim()}
-                                className="px-4 py-2 bg-white text-indigo-700 text-sm font-semibold rounded-lg hover:bg-indigo-50 disabled:opacity-50 transition-colors"
-                            >
-                                Send
-                            </button>
+                        <div className="mt-3">
+                            <div className="flex gap-2">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Search student by name..."
+                                        value={inviteSearch}
+                                        onChange={e => handleInviteSearch(e.target.value)}
+                                        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                        className="w-full rounded-lg border-0 bg-white/15 text-white placeholder-indigo-200 px-3 py-2 text-sm focus:ring-2 focus:ring-white/30"
+                                    />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-48 overflow-y-auto">
+                                            {suggestions.map(s => (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    onMouseDown={e => e.preventDefault()}
+                                                    onClick={() => handleSelectStudent(s)}
+                                                    className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors flex items-center gap-2 text-sm"
+                                                >
+                                                    <div className="h-7 w-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold text-xs flex-shrink-0">
+                                                        {s.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-gray-900 font-medium truncate">{s.name}</p>
+                                                        <p className="text-gray-400 text-xs truncate">{s.email}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {showSuggestions && inviteSearch.length >= 2 && suggestions.length === 0 && (
+                                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 px-3 py-3 text-sm text-gray-400 italic">
+                                            No students found
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={handleInvite}
+                                    disabled={!inviteEmail.trim()}
+                                    className="px-4 py-2 bg-white text-indigo-700 text-sm font-semibold rounded-lg hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+                                >
+                                    Send
+                                </button>
+                            </div>
+                            {inviteEmail && (
+                                <p className="text-xs text-indigo-200 mt-1.5">Will invite: {inviteEmail}</p>
+                            )}
                         </div>
                     )}
+
+                    {/* Progress Bar (Student Only) */}
+                    {isStudent && enrollment?.status === 'active' && topics.length > 0 && (() => {
+                        const visibleTopics = topics.filter(t => t.visible);
+                        const completedCount = visibleTopics.filter(t => t.is_completed).length;
+                        const progress = visibleTopics.length > 0 ? (completedCount / visibleTopics.length) * 100 : 0;
+                        return (
+                            <div className="mt-6 pt-6 border-t border-white/15">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm text-white font-medium">Your Progress</span>
+                                    <span className="text-sm text-indigo-200 font-semibold">{completedCount}/{visibleTopics.length} topics · {Math.round(progress)}%</span>
+                                </div>
+                                <div className="w-full bg-white/20 rounded-full h-2.5 overflow-hidden">
+                                    <div
+                                        className="bg-emerald-400 h-2.5 rounded-full transition-all duration-500"
+                                        style={{ width: `${progress}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -572,11 +771,28 @@ export default function CourseDetail() {
                                                 className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
                                                 onClick={() => toggleExpanded(topic.id)}
                                             >
-                                                <div className="flex items-center justify-center h-7 w-7 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold flex-shrink-0">
-                                                    {i + 1}
-                                                </div>
+                                                {isStudent && enrollment?.status === 'active' ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            toggleTopicCompleteMutation.mutate({ topicId: topic.id, isCompleted: !!topic.is_completed });
+                                                        }}
+                                                        className={`relative z-10 flex items-center justify-center h-6 w-6 rounded-full border-2 flex-shrink-0 transition-colors ${topic.is_completed
+                                                            ? 'bg-emerald-500 border-emerald-500 text-white'
+                                                            : 'border-gray-300 hover:border-indigo-400'
+                                                            }`}
+                                                    >
+                                                        {topic.is_completed && <Check className="h-4 w-4" />}
+                                                    </button>
+                                                ) : (
+                                                    <div className="flex items-center justify-center h-7 w-7 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold flex-shrink-0">
+                                                        {i + 1}
+                                                    </div>
+                                                )}
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className="font-semibold text-gray-900 text-sm">{topic.title}</h3>
+                                                    <h3 className={`font-semibold text-sm ${topic.is_completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{topic.title}</h3>
                                                 </div>
                                                 {isOwner && !topic.visible && (
                                                     <span className="flex items-center gap-1 text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
@@ -637,31 +853,81 @@ export default function CourseDetail() {
 
             {/* Students Tab */}
             {activeTab === 'students' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    {roster.length > 0 ? (
-                        <div className="divide-y divide-gray-50">
-                            {roster.map(s => (
-                                <Link key={s.enrollment_id} to={`/users/${s.student_user_id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
-                                    {s.student_avatar ? (
-                                        <img src={s.student_avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
-                                    ) : (
-                                        <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold">
-                                            {s.student_name.charAt(0).toUpperCase()}
+                <div className="space-y-6">
+                    {/* Pending Requests */}
+                    {enrollments.filter(e => e.status === 'pending').length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Requests</h3>
+                            <div className="bg-white rounded-xl border border-yellow-200 shadow-sm overflow-hidden">
+                                <div className="divide-y divide-gray-50">
+                                    {enrollments.filter(e => e.status === 'pending').map(req => (
+                                        <div key={req.id} className="flex items-center gap-4 px-6 py-4 bg-yellow-50/50">
+                                            {req.student_avatar ? (
+                                                <img src={req.student_avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
+                                            ) : (
+                                                <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 font-semibold">
+                                                    {(req.student_name || '?').charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900">{req.student_name || 'Unknown Student'}</div>
+                                                <div className="text-xs text-yellow-600">Requested access to join</div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => approveEnrollment.mutate({ enrollmentId: req.id, approve: true })}
+                                                    disabled={approveEnrollment.isPending}
+                                                    className="p-2 text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                                                    title="Accept Request"
+                                                >
+                                                    <Check className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => approveEnrollment.mutate({ enrollmentId: req.id, approve: false })}
+                                                    disabled={approveEnrollment.isPending}
+                                                    className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                                                    title="Reject Request"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-900">{s.student_name}</div>
-                                    </div>
-                                    <Star className="h-4 w-4 text-gray-200" />
-                                </Link>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-12 text-center text-gray-400">
-                            <Users className="mx-auto h-8 w-8 mb-2 opacity-50" />
-                            <p className="text-sm">No students enrolled yet</p>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
+
+                    {/* Active Roster */}
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Students</h3>
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            {roster.length > 0 ? (
+                                <div className="divide-y divide-gray-50">
+                                    {roster.map(s => (
+                                        <Link key={s.enrollment_id} to={`/users/${s.student_user_id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
+                                            {s.student_avatar ? (
+                                                <img src={s.student_avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
+                                            ) : (
+                                                <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold">
+                                                    {s.student_name.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900">{s.student_name}</div>
+                                            </div>
+                                            <Star className="h-4 w-4 text-gray-200" />
+                                        </Link>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="py-12 text-center text-gray-400">
+                                    <Users className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                                    <p className="text-sm">No students enrolled yet</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 

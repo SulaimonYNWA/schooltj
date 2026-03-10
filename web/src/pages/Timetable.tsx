@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
-import { BookOpen, Clock } from 'lucide-react';
+import { BookOpen, Clock, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Schedule {
@@ -67,7 +67,8 @@ export default function Timetable() {
         : (teacherCourses || []);
 
     // Build a grid: day -> list of positioned blocks
-    const grid: Record<string, { course: CourseSlot; startRow: number; span: number; colorIdx: number }[]> = {};
+    type SlotInfo = { course: CourseSlot; startRow: number; span: number; colorIdx: number; column: number; totalColumns: number };
+    const grid: Record<string, SlotInfo[]> = {};
     DAYS.forEach(d => (grid[d] = []));
 
     courses.forEach((course, idx) => {
@@ -81,9 +82,48 @@ export default function Timetable() {
                     startRow: timeToRow(course.schedule!.start_time!),
                     span: timeSpan(course.schedule!.start_time!, course.schedule!.end_time!),
                     colorIdx,
+                    column: 0,
+                    totalColumns: 1,
                 });
             }
         });
+    });
+
+    // Detect overlaps and assign sub-columns within each day
+    DAYS.forEach(day => {
+        const slots = grid[day];
+        if (slots.length < 2) return;
+
+        // Sort by start row, then by span (longer first)
+        slots.sort((a, b) => a.startRow - b.startRow || b.span - a.span);
+
+        // Find overlap groups: slots that share time ranges
+        const overlapsWith = (a: SlotInfo, b: SlotInfo) =>
+            a.startRow < b.startRow + b.span && b.startRow < a.startRow + a.span;
+
+        // Greedy column assignment
+        for (let i = 0; i < slots.length; i++) {
+            const usedCols = new Set<number>();
+            for (let j = 0; j < i; j++) {
+                if (overlapsWith(slots[i], slots[j])) {
+                    usedCols.add(slots[j].column);
+                }
+            }
+            let col = 0;
+            while (usedCols.has(col)) col++;
+            slots[i].column = col;
+        }
+
+        // Compute totalColumns for each overlap cluster
+        for (let i = 0; i < slots.length; i++) {
+            let maxCol = slots[i].column;
+            for (let j = 0; j < slots.length; j++) {
+                if (i !== j && overlapsWith(slots[i], slots[j])) {
+                    maxCol = Math.max(maxCol, slots[j].column);
+                }
+            }
+            slots[i].totalColumns = maxCol + 1;
+        }
     });
 
     const totalRows = HOURS.length * 2; // 30-min slots
@@ -91,14 +131,39 @@ export default function Timetable() {
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-                    <Clock className="h-6 w-6 text-indigo-500" />
-                    Timetable
-                </h1>
-                <p className="mt-1 text-sm text-gray-500">
-                    Your weekly class schedule
-                </p>
+            <div className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                        <Clock className="h-6 w-6 text-indigo-500" />
+                        Timetable
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Your weekly class schedule
+                    </p>
+                </div>
+                <button
+                    onClick={async () => {
+                        try {
+                            const res = await api.get('/api/calendar/ical', { responseType: 'blob' });
+                            const blob = new Blob([res.data], { type: 'text/calendar' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'schooltj_schedule.ics';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        } catch (err) {
+                            console.error('Failed to export calendar:', err);
+                        }
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                    title="Download as .ics for Google Calendar, Apple Calendar, etc."
+                >
+                    <Download className="h-4 w-4" />
+                    Export to Calendar
+                </button>
             </div>
 
             {courses.length === 0 ? (
@@ -145,13 +210,17 @@ export default function Timetable() {
                                 <div key={day} className="relative">
                                     {grid[day].map((slot, i) => {
                                         const colors = PALETTE[slot.colorIdx];
+                                        const colWidth = 100 / slot.totalColumns;
+                                        const leftPct = slot.column * colWidth;
                                         return (
                                             <div
                                                 key={`${slot.course.id}-${i}`}
-                                                className={`absolute left-1 right-1 rounded-lg border px-2 py-1 overflow-hidden ${colors.bg} hover:shadow-md transition-shadow cursor-default`}
+                                                className={`absolute rounded-lg border px-2 py-1 overflow-hidden ${colors.bg} hover:shadow-md transition-shadow cursor-default`}
                                                 style={{
                                                     top: `${40 + slot.startRow * 24}px`,
                                                     height: `${slot.span * 24 - 2}px`,
+                                                    left: `calc(${leftPct}% + 2px)`,
+                                                    width: `calc(${colWidth}% - 4px)`,
                                                     zIndex: 10,
                                                 }}
                                                 title={`${slot.course.title}\n${slot.course.schedule?.start_time} – ${slot.course.schedule?.end_time}`}

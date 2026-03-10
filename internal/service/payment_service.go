@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/schooltj/internal/domain"
@@ -10,11 +11,62 @@ import (
 )
 
 type PaymentService struct {
-	repo *repository.PaymentRepository
+	repo      *repository.PaymentRepository
+	providers map[string]PaymentProvider
 }
 
-func NewPaymentService(repo *repository.PaymentRepository) *PaymentService {
-	return &PaymentService{repo: repo}
+func NewPaymentService(repo *repository.PaymentRepository, providers []PaymentProvider) *PaymentService {
+	pMap := make(map[string]PaymentProvider)
+	for _, p := range providers {
+		pMap[p.Name()] = p
+	}
+	return &PaymentService{repo: repo, providers: pMap}
+}
+
+func (s *PaymentService) InitiateExternalPayment(ctx context.Context, studentUserID, courseID, providerName string, amount float64) (string, error) {
+	provider, ok := s.providers[providerName]
+	if !ok {
+		return "", fmt.Errorf("provider %s not found", providerName)
+	}
+
+	p := &domain.Payment{
+		StudentUserID: studentUserID,
+		CourseID:      courseID,
+		Amount:        amount,
+		Method:        providerName,
+		Status:        domain.PaymentStatusPending,
+		PaidAt:        time.Now(),
+	}
+
+	if err := s.repo.RecordPayment(ctx, p); err != nil {
+		return "", err
+	}
+
+	redirectURL, externalID, err := provider.InitiatePayment(ctx, p)
+	if err != nil {
+		return "", err
+	}
+
+	// Update with provider's internal ID
+	if err := s.repo.UpdateStatus(ctx, p.ID, domain.PaymentStatusPending, externalID); err != nil {
+		return "", err
+	}
+
+	return redirectURL, nil
+}
+
+func (s *PaymentService) ProcessWebhook(ctx context.Context, providerName string, payload interface{}) error {
+	provider, ok := s.providers[providerName]
+	if !ok {
+		return fmt.Errorf("provider %s not found", providerName)
+	}
+
+	externalID, status, err := provider.HandleCallback(ctx, payload)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.UpdateStatusByExternalID(ctx, externalID, status)
 }
 
 type RecordPaymentInput struct {

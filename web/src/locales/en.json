@@ -1,0 +1,68 @@
+{
+    "nav": {
+        "dashboard": "Dashboard",
+        "teachers": "Teachers",
+        "courses": "Courses",
+        "schools": "Schools",
+        "timetable": "Timetable",
+        "grades": "Grades",
+        "homework": "Homework",
+        "students": "Students",
+        "attendance": "Attendance",
+        "payments": "Payments",
+        "announcements": "Announcements",
+        "messages": "Messages",
+        "notifications": "Notifications",
+        "reports": "Reports",
+        "profile": "Profile",
+        "settings": "Settings"
+    },
+    "common": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "edit": "Edit",
+        "delete": "Delete",
+        "loading": "Loading...",
+        "search": "Search",
+        "actions": "Actions"
+    },
+    "auth": {
+        "login": "Login",
+        "signup": "Sign Up",
+        "email": "Email",
+        "password": "Password",
+        "logout": "Logout"
+    },
+    "dashboard": {
+        "title": "Dashboard",
+        "student_title": "Student Dashboard",
+        "welcome": "Welcome back, {{name}}",
+        "stats": {
+            "total_students": "Total Students",
+            "active_courses": "Active Courses",
+            "revenue": "Revenue",
+            "teachers": "Teachers",
+            "active_enrollments": "Active Enrollments",
+            "avg_attendance": "Avg Attendance",
+            "recent_payments": "Recent Payments",
+            "pending_requests": "Pending Requests",
+            "invitations": "Invitations"
+        },
+        "activity": {
+            "title": "Recent Activity",
+            "no_activity": "No recent activity yet."
+        },
+        "announcements": {
+            "title": "Latest Announcements",
+            "no_announcements": "No announcements yet."
+        },
+        "assignments": {
+            "upcoming": "Upcoming Assignments",
+            "no_assignments": "No upcoming assignments."
+        },
+        "notifications": {
+            "recent": "Recent Notifications",
+            "all_caught_up": "All caught up!"
+        }
+    }
+}

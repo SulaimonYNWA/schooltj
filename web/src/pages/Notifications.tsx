@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { Bell, Check, CheckCheck, Clock, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 interface Notification {
     id: string;
@@ -18,6 +19,10 @@ const typeIcon: Record<string, { bg: string; color: string }> = {
     assignment: { bg: '#fef3c7', color: '#d97706' },
     message: { bg: '#dbeafe', color: '#2563eb' },
     announcement: { bg: '#dcfce7', color: '#16a34a' },
+    course_invitation: { bg: '#dbeafe', color: '#2563eb' },
+    enrollment_request: { bg: '#fef3c7', color: '#d97706' },
+    enrollment_approved: { bg: '#dcfce7', color: '#16a34a' },
+    enrollment_rejected: { bg: '#fee2e2', color: '#dc2626' },
     system: { bg: '#f3f4f6', color: '#6b7280' },
 };
 
@@ -34,15 +39,23 @@ export default function Notifications() {
         mutationFn: () => api.post('/api/notifications/mark-all-read'),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
-            queryClient.invalidateQueries({ queryKey: ['notification-count'] });
+            queryClient.invalidateQueries({ queryKey: ['notif-unread'] });
         },
     });
+
+    // Auto-mark all as read when page opens
+    useEffect(() => {
+        const hasUnread = notifications.some(n => !n.is_read);
+        if (hasUnread) {
+            markAllRead.mutate();
+        }
+    }, [notifications.length]);
 
     const markRead = useMutation({
         mutationFn: (id: string) => api.post(`/api/notifications/${id}/read`),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
-            queryClient.invalidateQueries({ queryKey: ['notification-count'] });
+            queryClient.invalidateQueries({ queryKey: ['notif-unread'] });
         },
     });
 

@@ -85,3 +85,55 @@ func (h *PaymentHandler) MyPayments(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewEncoder(w).Encode(payments)
 }
+
+type InitiatePaymentRequest struct {
+	CourseID string  `json:"course_id"`
+	Amount   float64 `json:"amount"`
+	Provider string  `json:"provider"` // alif, humo, etc.
+}
+
+// InitiatePayment handles POST /api/payments/initiate
+func (h *PaymentHandler) InitiatePayment(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req InitiatePaymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	redirectURL, err := h.service.InitiateExternalPayment(r.Context(), userID, req.CourseID, req.Provider, req.Amount)
+	if err != nil {
+		log.Printf("[PaymentHandler.InitiatePayment] error: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"redirect_url": redirectURL,
+	})
+}
+
+// HandleAlifCallback handles POST /api/payments/callback/alif
+func (h *PaymentHandler) HandleAlifCallback(w http.ResponseWriter, r *http.Request) {
+	// For webhooks, we often can't use the standard auth middleware
+	// We might need a separate way to parse payload or just raw body
+	var payload interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.ProcessWebhook(r.Context(), "alif", payload); err != nil {
+		log.Printf("[PaymentHandler.HandleAlifCallback] error: %v", err)
+		http.Error(w, "processing failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}

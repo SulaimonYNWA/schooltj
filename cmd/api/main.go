@@ -72,7 +72,17 @@ func main() {
 	attendanceService := service.NewAttendanceService(attendanceRepo)
 	attendanceHandler := handler.NewAttendanceHandler(attendanceService)
 	paymentRepo := repository.NewPaymentRepository(repo.DB)
-	paymentService := service.NewPaymentService(paymentRepo)
+
+	// Payment Providers
+	alifMerchantID := os.Getenv("ALIF_MERCHANT_ID")
+	alifSecret := os.Getenv("ALIF_SECRET")
+	if alifMerchantID == "" && os.Getenv("APP_ENV") != "production" {
+		alifMerchantID = "demo_merchant"
+		alifSecret = "demo_secret"
+	}
+	alifProvider := service.NewAlifProvider(alifMerchantID, alifSecret)
+
+	paymentService := service.NewPaymentService(paymentRepo, []service.PaymentProvider{alifProvider})
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 	announcementService := service.NewAnnouncementService(announcementRepo)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
@@ -90,8 +100,14 @@ func main() {
 	messageService := service.NewMessageService(messageRepo)
 	messageHandler := handler.NewMessageHandler(messageService)
 	courseContentRepo := repository.NewCourseContentRepository(repo.DB)
-	courseContentService := service.NewCourseContentService(courseContentRepo, courseRepo)
+	courseContentService := service.NewCourseContentService(courseContentRepo, courseRepo, studentRepo)
 	courseContentHandler := handler.NewCourseContentHandler(courseContentService)
+
+	// Phase 3: Communication & Engagement
+	emailService := service.NewEmailService()
+	_ = emailService // used by handlers via direct calls
+	wsHandler := handler.NewWSHandler(messageService, jwtSecret)
+	calendarHandler := handler.NewCalendarHandler(repo.DB)
 
 	// CORS config from environment
 	allowedOrigins := []string{"http://localhost:5173", "http://localhost:3000"}
@@ -124,6 +140,9 @@ func main() {
 	r.Post("/register", authHandler.Register)
 	r.Post("/login", authHandler.Login)
 
+	// SSE stream — uses its own JWT auth via ?token= query param
+	r.Get("/api/ws", wsHandler.Stream)
+
 	r.Group(func(r chi.Router) {
 		r.Use(handler.AuthMiddleware(authService))
 
@@ -151,6 +170,7 @@ func main() {
 
 		// Course routes
 		r.Get("/api/courses", courseHandler.List)
+		r.Get("/api/categories", courseHandler.ListCategories)
 		r.Post("/api/courses", courseHandler.Create)
 		r.Get("/api/courses/{id}", courseHandler.GetByID)
 		r.Put("/api/courses/{id}", courseHandler.Update)
@@ -169,6 +189,8 @@ func main() {
 		r.Post("/api/courses/{id}/curriculum", courseContentHandler.AddTopic)
 		r.Put("/api/courses/{id}/curriculum/{topicId}", courseContentHandler.UpdateTopic)
 		r.Delete("/api/courses/{id}/curriculum/{topicId}", courseContentHandler.DeleteTopic)
+		r.Post("/api/topics/{topicId}/complete", courseHandler.MarkTopicComplete)
+		r.Delete("/api/topics/{topicId}/complete", courseHandler.UnmarkTopicComplete)
 		r.Get("/api/courses/{id}/materials", courseContentHandler.ListMaterials)
 		r.Post("/api/courses/{id}/materials", courseContentHandler.UploadMaterial)
 		r.Get("/api/materials/{id}/download", courseContentHandler.DownloadMaterial)
@@ -196,6 +218,8 @@ func main() {
 		r.Post("/api/payments", paymentHandler.RecordPayment)
 		r.Get("/api/payments", paymentHandler.ListPayments)
 		r.Get("/api/my-payments", paymentHandler.MyPayments)
+		r.Post("/api/payments/initiate", paymentHandler.InitiatePayment)
+		r.Post("/api/payments/callback/alif", paymentHandler.HandleAlifCallback)
 
 		// Announcement routes
 		r.Post("/api/announcements", announcementHandler.Create)
@@ -205,6 +229,16 @@ func main() {
 		// Dashboard routes
 		r.Get("/api/dashboard/stats", dashboardHandler.GetStats)
 		r.Get("/api/dashboard/activity", dashboardHandler.GetActivity)
+
+		// Analytics routes
+		r.Get("/api/analytics/enrollment-trend", dashboardHandler.GetEnrollmentTrend)
+		r.Get("/api/analytics/revenue-trend", dashboardHandler.GetRevenueTrend)
+		r.Get("/api/analytics/attendance-trend", dashboardHandler.GetAttendanceTrend)
+		r.Get("/api/analytics/course-breakdown", dashboardHandler.GetCourseBreakdown)
+		r.Get("/api/analytics/export", dashboardHandler.ExportCSV)
+
+		// Calendar export
+		r.Get("/api/calendar/ical", calendarHandler.ExportICal)
 
 		// Settings routes
 		r.Post("/api/settings/change-password", settingsHandler.ChangePassword)

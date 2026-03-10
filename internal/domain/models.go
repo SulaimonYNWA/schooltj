@@ -86,10 +86,26 @@ type Course struct {
 	TeacherEmail  string    `json:"teacher_email,omitempty"`
 	TeacherAvatar *string   `json:"teacher_avatar,omitempty"` // populated on read
 	CoverImageURL *string   `json:"cover_image_url,omitempty"`
+	CategoryID    *string   `json:"category_id,omitempty"`
+	CategoryName  string    `json:"category_name,omitempty"`
+	Tags          []string  `json:"tags,omitempty"`
+	Difficulty    string    `json:"difficulty,omitempty"` // beginner, intermediate, advanced
 	Language      string    `json:"language,omitempty"`
 	Price         float64   `json:"price"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type Category struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Tag struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type Enrollment struct {
@@ -98,8 +114,26 @@ type Enrollment struct {
 	StudentName   string    `json:"student_name,omitempty"`
 	StudentAvatar *string   `json:"student_avatar,omitempty"`
 	CourseID      string    `json:"course_id"`
+	CourseName    string    `json:"course_name,omitempty"`
 	EnrolledAt    time.Time `json:"enrolled_at"`
 	Status        string    `json:"status"`
+	Progress      float64   `json:"progress,omitempty"`
+}
+
+type TopicCompletion struct {
+	StudentUserID string    `json:"student_user_id"`
+	TopicID       string    `json:"topic_id"`
+	CompletedAt   time.Time `json:"completed_at"`
+}
+
+type Certificate struct {
+	ID             string    `json:"id"`
+	StudentUserID  string    `json:"student_user_id"`
+	CourseID       string    `json:"course_id"`
+	CourseTitle    string    `json:"course_title,omitempty"`
+	StudentName    string    `json:"student_name,omitempty"`
+	IssuedAt       time.Time `json:"issued_at"`
+	CertificateURL string    `json:"certificate_url"`
 }
 
 const (
@@ -153,6 +187,19 @@ type AttendanceSummary struct {
 	Percentage    float64 `json:"percentage"`
 }
 
+const (
+	PaymentMethodCash     = "cash"
+	PaymentMethodCard     = "card"
+	PaymentMethodTransfer = "transfer"
+	PaymentMethodAlif     = "alif"
+)
+
+const (
+	PaymentStatusPending = "pending"
+	PaymentStatusSuccess = "success"
+	PaymentStatusFailed  = "failed"
+)
+
 type Payment struct {
 	ID             string    `json:"id"`
 	StudentUserID  string    `json:"student_user_id"`
@@ -161,7 +208,9 @@ type Payment struct {
 	CourseID       string    `json:"course_id"`
 	CourseTitle    string    `json:"course_title,omitempty"`
 	Amount         float64   `json:"amount"`
-	Method         string    `json:"method"` // cash, card, transfer
+	Method         string    `json:"method"`      // cash, card, transfer, alif
+	Status         string    `json:"status"`      // pending, success, failed
+	ExternalID     string    `json:"external_id"` // Provider's reference ID
 	Note           string    `json:"note,omitempty"`
 	ReceiptURL     string    `json:"receipt_url,omitempty"`
 	RecordedBy     string    `json:"recorded_by"`
@@ -268,6 +317,7 @@ type CurriculumTopic struct {
 	SortOrder   int       `json:"sort_order"`
 	Visible     bool      `json:"visible"`
 	CreatedAt   time.Time `json:"created_at"`
+	IsCompleted bool      `json:"is_completed,omitempty"`
 }
 
 type CourseMaterial struct {

@@ -70,7 +70,10 @@ func (h *CourseContentHandler) ListTopics(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-
+	if topics == nil {
+		w.Write([]byte("[]"))
+		return
+	}
 	json.NewEncoder(w).Encode(topics)
 }
 

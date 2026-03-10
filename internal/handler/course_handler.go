@@ -24,6 +24,9 @@ type createCourseRequest struct {
 	Schedule    *domain.Schedule `json:"schedule"`
 	Price       float64          `json:"price"`
 	Language    string           `json:"language"`
+	CategoryID  *string          `json:"category_id"`
+	Difficulty  string           `json:"difficulty"`
+	Tags        []string         `json:"tags"`
 	TeacherID   *string          `json:"teacher_id,omitempty"` // Required for SchoolAdmin
 }
 
@@ -42,7 +45,7 @@ func (h *CourseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	course, err := h.service.CreateCourse(r.Context(), userID, role, req.Title, req.Description, req.Schedule, req.Price, req.Language, req.TeacherID)
+	course, err := h.service.CreateCourse(r.Context(), userID, role, req.Title, req.Description, req.Schedule, req.Price, req.Language, req.CategoryID, req.Difficulty, req.Tags, req.TeacherID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -295,6 +298,9 @@ type updateCourseRequest struct {
 	Schedule    *domain.Schedule `json:"schedule"`
 	Price       float64          `json:"price"`
 	Language    string           `json:"language"`
+	CategoryID  *string          `json:"category_id"`
+	Difficulty  string           `json:"difficulty"`
+	Tags        []string         `json:"tags"`
 }
 
 func (h *CourseHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -313,7 +319,7 @@ func (h *CourseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	course, err := h.service.UpdateCourse(r.Context(), userID, role, courseID, req.Title, req.Description, req.Schedule, req.Price, req.Language)
+	course, err := h.service.UpdateCourse(r.Context(), userID, role, courseID, req.Title, req.Description, req.Schedule, req.Price, req.Language, req.CategoryID, req.Difficulty, req.Tags)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -340,4 +346,48 @@ func (h *CourseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "course deleted"}`))
+}
+func (h *CourseHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
+	cats, err := h.service.ListCategories(r.Context())
+	if err != nil {
+		http.Error(w, "failed to fetch categories", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(cats)
+}
+
+func (h *CourseHandler) MarkTopicComplete(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	topicID := chi.URLParam(r, "topicId")
+
+	if !ok || topicID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.MarkTopicComplete(r.Context(), userID, topicID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "topic marked as complete"}`))
+}
+
+func (h *CourseHandler) UnmarkTopicComplete(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	topicID := chi.URLParam(r, "topicId")
+
+	if !ok || topicID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.UnmarkTopicComplete(r.Context(), userID, topicID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "topic marked as incomplete"}`))
 }

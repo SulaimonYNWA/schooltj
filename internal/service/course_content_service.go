@@ -18,10 +18,11 @@ import (
 type CourseContentService struct {
 	contentRepo *repository.CourseContentRepository
 	courseRepo  *repository.CourseRepository
+	studentRepo *repository.StudentRepository
 }
 
-func NewCourseContentService(contentRepo *repository.CourseContentRepository, courseRepo *repository.CourseRepository) *CourseContentService {
-	return &CourseContentService{contentRepo: contentRepo, courseRepo: courseRepo}
+func NewCourseContentService(contentRepo *repository.CourseContentRepository, courseRepo *repository.CourseRepository, studentRepo *repository.StudentRepository) *CourseContentService {
+	return &CourseContentService{contentRepo: contentRepo, courseRepo: courseRepo, studentRepo: studentRepo}
 }
 
 const uploadsDir = "uploads/courses"
@@ -90,8 +91,17 @@ func (s *CourseContentService) ListTopics(ctx context.Context, userID string, ro
 	// Students only see visible topics
 	if role == domain.RoleStudent {
 		visible := make([]domain.CurriculumTopic, 0, len(topics))
+		completedTopics, _ := s.studentRepo.GetCompletedTopics(ctx, userID, courseID)
+		completedMap := make(map[string]bool)
+		for _, id := range completedTopics {
+			completedMap[id] = true
+		}
+
 		for _, t := range topics {
 			if t.Visible {
+				if completedMap[t.ID] {
+					t.IsCompleted = true
+				}
 				visible = append(visible, t)
 			}
 		}
