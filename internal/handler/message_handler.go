@@ -35,6 +35,13 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Trigger real-time broadcast to recipient
+	marshaledMsg, _ := json.Marshal(map[string]interface{}{
+		"type":    "new_message",
+		"payload": m,
+	})
+	BroadcastToUser(m.ToUserID, string(marshaledMsg))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(m)

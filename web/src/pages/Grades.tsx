@@ -33,19 +33,19 @@ export default function Grades() {
 
     const { data: myGrades = [] } = useQuery<Grade[]>({
         queryKey: ['my-grades'],
-        queryFn: () => api.get('/api/my-grades').then(r => r.data),
+        queryFn: () => api.get('/api/my-grades').then(r => Array.isArray(r.data) ? r.data : []),
         enabled: isStudent,
     });
 
     const { data: courses = [] } = useQuery<Course[]>({
         queryKey: ['courses'],
-        queryFn: () => api.get('/api/courses').then(r => r.data),
+        queryFn: () => api.get('/api/courses').then(r => Array.isArray(r.data) ? r.data : []),
         enabled: !isStudent,
     });
 
     const { data: courseGrades = [] } = useQuery<Grade[]>({
         queryKey: ['course-grades', selectedCourse],
-        queryFn: () => api.get(`/api/courses/${selectedCourse}/grades`).then(r => r.data),
+        queryFn: () => api.get(`/api/courses/${selectedCourse}/grades`).then(r => Array.isArray(r.data) ? r.data : []),
         enabled: !!selectedCourse,
     });
 

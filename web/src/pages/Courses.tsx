@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 import { useAuth } from '../lib/auth';
-import { BookOpen, User, School, Tag, Plus, Mail } from 'lucide-react';
+import { BookOpen, User, School, Tag, Plus, Mail, Users, Star } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import RatingModal from '../components/RatingModal';
 
 
 interface Schedule {
@@ -31,6 +32,10 @@ interface Course {
     teacher_avatar?: string;
     cover_image_url?: string;
     school_name?: string;
+    rating_avg?: number;
+    rating_count?: number;
+    pending_requests_count?: number;
+    view_count?: number;
     created_at: string;
 }
 
@@ -57,8 +62,10 @@ export default function CourseList() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+    const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+    const [ratingTarget, setRatingTarget] = useState<{ id: string; name: string } | null>(null);
 
-    const [viewMode, setViewMode] = useState<'all' | 'my'>('all');
+    const [viewMode, setViewMode] = useState<'all' | 'my' | 'past'>('all');
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
 
@@ -103,6 +110,8 @@ export default function CourseList() {
 
     const isTeacherOrSchool = user?.role === 'teacher' || user?.role === 'school_admin';
     const isStudent = user?.role === 'student';
+    const isTeacher = user?.role === 'teacher';
+    const isSchoolAdmin = user?.role === 'school_admin';
 
     if ((isLoadingMy && viewMode === 'my') || (isLoading && viewMode === 'all')) {
         return <div className="p-8 text-center text-gray-500 italic">Loading courses...</div>;
@@ -111,7 +120,9 @@ export default function CourseList() {
         return <div className="p-8 text-center text-red-500 font-medium">Error loading courses. Please try again.</div>;
     }
 
-    const displayedCourses = viewMode === 'all' ? courses : myEnrollments?.map(e => e.course);
+    const displayedCourses = viewMode === 'all' ? courses :
+        viewMode === 'my' ? myEnrollments?.filter(e => e.enrollment.status !== 'completed').map(e => e.course) :
+            myEnrollments?.filter(e => e.enrollment.status === 'completed').map(e => e.course);
 
     const filteredCourses = displayedCourses?.filter(course => {
         if (selectedCategory && course.category_id !== selectedCategory) return false;
@@ -153,7 +164,14 @@ export default function CourseList() {
                                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'my' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                                     }`}
                             >
-                                My Enrollments
+                                Active
+                            </button>
+                            <button
+                                onClick={() => setViewMode('past')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'past' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                                    }`}
+                            >
+                                Past
                             </button>
                         </div>
                     )}
@@ -236,6 +254,13 @@ export default function CourseList() {
                                                 <BookOpen className="h-12 w-12" />
                                             </div>
                                         )}
+                                        {course.rating_avg !== undefined && course.rating_avg > 0 && (
+                                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm flex items-center gap-1">
+                                                <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                                                <span className="text-xs font-bold text-gray-900">{course.rating_avg.toFixed(1)}</span>
+                                            </div>
+                                        )}
+
                                         {enrollment && enrollment.status && (
                                             <div className="absolute top-2 right-2">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
@@ -248,6 +273,18 @@ export default function CourseList() {
                                         <div className="flex items-start justify-between">
                                             <div className="bg-indigo-50 p-2 rounded-lg">
                                                 <BookOpen className="h-6 w-6 text-indigo-600" />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {isStudent && course.view_count !== undefined && course.view_count < 3 && (
+                                                    <span className="px-2 py-1 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1">
+                                                        <Star className="w-3 h-3 fill-white" /> New
+                                                    </span>
+                                                )}
+                                                {(isTeacher || isSchoolAdmin) && course.pending_requests_count! > 0 && (
+                                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-lg shadow-sm flex items-center gap-1 border border-yellow-200">
+                                                        <Users className="w-3 h-3" /> {course.pending_requests_count} Pending
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <h3 className="mt-4 text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
@@ -319,6 +356,20 @@ export default function CourseList() {
                                             </button>
                                         </div>
                                     </div>
+                                    {viewMode === 'past' && isStudent && (
+                                        <div className="px-6 pb-4">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setRatingTarget({ id: course.id, name: course.title });
+                                                    setIsRatingModalOpen(true);
+                                                }}
+                                                className="w-full py-2 bg-indigo-50 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100 flex items-center justify-center gap-2"
+                                            >
+                                                <Star className="h-4 w-4" /> Write Review
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -355,6 +406,22 @@ export default function CourseList() {
                     />
                 )
             }
+            {ratingTarget && (
+                <RatingModal
+                    isOpen={isRatingModalOpen}
+                    onClose={() => {
+                        setIsRatingModalOpen(false);
+                        setRatingTarget(null);
+                    }}
+                    targetId={ratingTarget.id}
+                    targetName={ratingTarget.name}
+                    targetType="course"
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['courses'] });
+                        queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
+                    }}
+                />
+            )}
         </div >
     );
 }

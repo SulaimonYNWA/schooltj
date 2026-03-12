@@ -19,6 +19,7 @@ type User struct {
 	Name         string    `json:"name"`
 	PasswordHash string    `json:"-"`
 	Role         Role      `json:"role"`
+	SchoolName   *string   `json:"school_name,omitempty"`
 	AvatarURL    *string   `json:"avatar_url"`
 	RatingAvg    float64   `json:"rating_avg"`
 	RatingCount  int       `json:"rating_count"`
@@ -75,25 +76,29 @@ type Schedule struct {
 }
 
 type Course struct {
-	ID            string    `json:"id"`
-	Title         string    `json:"title"`
-	Description   string    `json:"description,omitempty"`
-	Schedule      *Schedule `json:"schedule,omitempty"`
-	SchoolID      *string   `json:"school_id,omitempty"`
-	SchoolName    string    `json:"school_name,omitempty"`
-	TeacherID     *string   `json:"teacher_id,omitempty"`
-	TeacherName   string    `json:"teacher_name,omitempty"`
-	TeacherEmail  string    `json:"teacher_email,omitempty"`
-	TeacherAvatar *string   `json:"teacher_avatar,omitempty"` // populated on read
-	CoverImageURL *string   `json:"cover_image_url,omitempty"`
-	CategoryID    *string   `json:"category_id,omitempty"`
-	CategoryName  string    `json:"category_name,omitempty"`
-	Tags          []string  `json:"tags,omitempty"`
-	Difficulty    string    `json:"difficulty,omitempty"` // beginner, intermediate, advanced
-	Language      string    `json:"language,omitempty"`
-	Price         float64   `json:"price"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID                   string    `json:"id"`
+	Title                string    `json:"title"`
+	Description          string    `json:"description,omitempty"`
+	Schedule             *Schedule `json:"schedule,omitempty"`
+	SchoolID             *string   `json:"school_id,omitempty"`
+	SchoolName           string    `json:"school_name,omitempty"`
+	TeacherID            *string   `json:"teacher_id,omitempty"`
+	TeacherName          string    `json:"teacher_name,omitempty"`
+	TeacherEmail         string    `json:"teacher_email,omitempty"`
+	TeacherAvatar        *string   `json:"teacher_avatar,omitempty"` // populated on read
+	CoverImageURL        *string   `json:"cover_image_url,omitempty"`
+	CategoryID           *string   `json:"category_id,omitempty"`
+	CategoryName         string    `json:"category_name,omitempty"`
+	Tags                 []string  `json:"tags,omitempty"`
+	Difficulty           string    `json:"difficulty,omitempty"` // beginner, intermediate, advanced
+	Language             string    `json:"language,omitempty"`
+	Price                float64   `json:"price"`
+	RatingAvg            float64   `json:"rating_avg"`
+	RatingCount          int       `json:"rating_count"`
+	PendingRequestsCount int       `json:"pending_requests_count,omitempty"`
+	ViewCount            int       `json:"view_count,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type Category struct {
@@ -150,6 +155,7 @@ type Rating struct {
 	FromUserID string    `json:"from_user_id"`
 	ToUserID   *string   `json:"to_user_id,omitempty"`
 	ToSchoolID *string   `json:"to_school_id,omitempty"`
+	ToCourseID *string   `json:"to_course_id,omitempty"`
 	Score      int       `json:"score"`
 	Comment    string    `json:"comment"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -323,6 +329,7 @@ type CurriculumTopic struct {
 type CourseMaterial struct {
 	ID          string    `json:"id"`
 	CourseID    string    `json:"course_id"`
+	TopicID     *string   `json:"topic_id,omitempty"`
 	FileName    string    `json:"file_name"`
 	FilePath    string    `json:"-"`
 	FileSize    int64     `json:"file_size"`

@@ -7,11 +7,12 @@ import {
     BookOpen, Users, Star, MapPin, Calendar, Clock, Globe, Tag,
     ChevronDown, ChevronRight, Plus, Pencil, Trash2, Eye, EyeOff,
     GraduationCap, X, Check, ArrowLeft, ClipboardList, BarChart3,
-    Camera, UserPlus, Mail, CreditCard
+    Camera, UserPlus, Mail, CreditCard, Upload, Download, FileText, ImageIcon
 } from 'lucide-react';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
+import RatingDisplay from '../components/RatingDisplay';
 
 interface Schedule {
     days: string[];
@@ -39,6 +40,8 @@ interface Course {
     difficulty?: string;
     tags?: string[];
     price: number;
+    rating_avg?: number;
+    rating_count?: number;
     created_at: string;
 }
 
@@ -51,6 +54,17 @@ interface Topic {
     visible: boolean;
     created_at: string;
     is_completed?: boolean;
+}
+
+interface Material {
+    id: string;
+    course_id: string;
+    topic_id?: string;
+    file_name: string;
+    file_size: number;
+    content_type: string;
+    uploaded_by: string;
+    created_at: string;
 }
 
 interface RosterStudent {
@@ -87,6 +101,8 @@ interface AttendanceRecord {
 interface Enrollment {
     id: string;
     student_user_id: string;
+    student_name?: string;
+    student_avatar?: string;
     course_id: string;
     enrolled_at: string;
     status: string;
@@ -95,14 +111,187 @@ interface Enrollment {
 
 interface EnrollmentWithCourse {
     enrollment: Enrollment;
-    course: { id: string };
+    course: Course;
+}
+
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function TopicExpandedContent({ topic, courseId, isOwner, uploadingTopicId, setUploadingTopicId, setEditingTopic, updateTopicMutation, deleteTopicMutation, queryClient }: {
+    topic: Topic;
+    courseId: string;
+    isOwner: boolean;
+    uploadingTopicId: string | null;
+    setUploadingTopicId: (id: string | null) => void;
+    setEditingTopic: (id: string | null) => void;
+    updateTopicMutation: any;
+    deleteTopicMutation: any;
+    queryClient: any;
+}) {
+    const { data: materials = [] } = useQuery<Material[]>({
+        queryKey: ['topic-materials', topic.id],
+        queryFn: () => api.get(`/api/courses/${courseId}/curriculum/${topic.id}/materials`).then(r => r.data || []),
+    });
+
+    const isUploading = uploadingTopicId === topic.id;
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingTopicId(topic.id);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            await api.post(`/api/courses/${courseId}/curriculum/${topic.id}/materials`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            queryClient.invalidateQueries({ queryKey: ['topic-materials', topic.id] });
+        } catch (err: any) {
+            alert('Upload failed: ' + (err.response?.data || err.message));
+        } finally {
+            setUploadingTopicId(null);
+            e.target.value = '';
+        }
+    };
+
+    const handleDelete = async (materialId: string, fileName: string) => {
+        if (!confirm(`Delete "${fileName}"?`)) return;
+        try {
+            await api.delete(`/api/materials/${materialId}`);
+            queryClient.invalidateQueries({ queryKey: ['topic-materials', topic.id] });
+        } catch (err: any) {
+            alert('Delete failed: ' + (err.response?.data || err.message));
+        }
+    };
+
+    const handleDownload = async (materialId: string, fileName: string) => {
+        try {
+            const res = await api.get(`/api/materials/${materialId}/download`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err: any) {
+            alert('Download failed: ' + (err.response?.data || err.message));
+        }
+    };
+
+    return (
+        <div className="px-5 pb-4 border-t border-gray-100 pt-3">
+            {topic.description ? (
+                <p className="text-sm text-gray-600 leading-relaxed">{topic.description}</p>
+            ) : (
+                <p className="text-sm text-gray-400 italic">No description</p>
+            )}
+
+            {/* Materials Section */}
+            <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Materials</h4>
+                    {isOwner && (
+                        <label className="cursor-pointer">
+                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${isUploading
+                                ? 'bg-indigo-50 text-indigo-400'
+                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                                }`}>
+                                <Upload className="h-3.5 w-3.5" />
+                                {isUploading ? 'Uploading...' : 'Upload File'}
+                            </div>
+                            <input
+                                type="file"
+                                accept=".pdf,image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                                className="hidden"
+                                onChange={handleFileUpload}
+                                disabled={isUploading}
+                            />
+                        </label>
+                    )}
+                </div>
+
+                {materials.length > 0 ? (
+                    <div className="space-y-1.5">
+                        {materials.map(m => (
+                            <div key={m.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors">
+                                {m.content_type === 'application/pdf' ? (
+                                    <FileText className="h-4 w-4 text-red-500 flex-shrink-0" />
+                                ) : (
+                                    <ImageIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-gray-800 font-medium truncate">{m.file_name}</p>
+                                    <p className="text-xs text-gray-400">{formatFileSize(m.file_size)}</p>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => handleDownload(m.id, m.file_name)}
+                                        className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                        title="Download"
+                                    >
+                                        <Download className="h-3.5 w-3.5" />
+                                    </button>
+                                    {isOwner && (
+                                        <button
+                                            onClick={() => handleDelete(m.id, m.file_name)}
+                                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                            title="Delete"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-xs text-gray-400 italic">No materials uploaded yet</p>
+                )}
+            </div>
+
+            {/* Owner Actions */}
+            {isOwner && (
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <button
+                        onClick={() => setEditingTopic(topic.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                    >
+                        <Pencil className="h-3 w-3" /> Edit
+                    </button>
+                    <button
+                        onClick={() => updateTopicMutation.mutate({
+                            topicId: topic.id,
+                            title: topic.title,
+                            description: topic.description,
+                            sort_order: topic.sort_order,
+                            visible: !topic.visible,
+                        })}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                    >
+                        {topic.visible ? <><EyeOff className="h-3 w-3" /> Hide</> : <><Eye className="h-3 w-3" /> Show</>}
+                    </button>
+                    <button
+                        onClick={() => { if (confirm('Delete this topic?')) deleteTopicMutation.mutate(topic.id); }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                        <Trash2 className="h-3 w-3" /> Delete
+                    </button>
+                </div>
+            )}
+        </div>
+    );
 }
 
 export default function CourseDetail() {
     const { id } = useParams<{ id: string }>();
     const { user } = useAuth();
     const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<'overview' | 'topics' | 'students' | 'grades' | 'attendance'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'topics' | 'students' | 'grades' | 'attendance' | 'reviews'>('overview');
     const [editingTopic, setEditingTopic] = useState<string | null>(null);
     const [showAddTopic, setShowAddTopic] = useState(false);
     const [topicForm, setTopicForm] = useState({ title: '', description: '', sort_order: 0 });
@@ -115,6 +304,7 @@ export default function CourseDetail() {
     const [suggestions, setSuggestions] = useState<{ id: string; name: string; email: string }[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isPaying, setIsPaying] = useState(false);
+    const [uploadingTopicId, setUploadingTopicId] = useState<string | null>(null);
 
 
     const isTeacher = user?.role === 'teacher';
@@ -155,6 +345,15 @@ export default function CourseDetail() {
         queryFn: () => api.get(`/api/courses/${id}/attendance?date=${attendanceDate}`).then(r => r.data),
         enabled: !!id && activeTab === 'attendance',
     });
+
+    const isStudent = user?.role === 'student';
+    const { data: myEnrollments } = useQuery<EnrollmentWithCourse[]>({
+        queryKey: ['my-enrollments'],
+        queryFn: () => api.get('/api/my-enrollments').then(r => r.data),
+        enabled: !!user && isStudent,
+    });
+
+    const studentEnrollment = myEnrollments?.find(e => e.course.id === id)?.enrollment;
 
     const addTopicMutation = useMutation({
         mutationFn: (data: { title: string; description: string; sort_order: number }) =>
@@ -215,14 +414,7 @@ export default function CourseDetail() {
         },
     });
 
-    // Enrollment for students
-    const isStudent = user?.role === 'student';
-    const { data: myEnrollments } = useQuery<EnrollmentWithCourse[]>({
-        queryKey: ['my-enrollments'],
-        queryFn: () => api.get('/api/my-enrollments').then(r => r.data),
-        enabled: !!user && isStudent,
-    });
-    const enrollment = myEnrollments?.find(e => e.course.id === id)?.enrollment;
+    const enrollment = studentEnrollment;
 
     const handleRequestAccess = async () => {
         try {
@@ -351,10 +543,17 @@ export default function CourseDetail() {
         });
     };
 
+    const isOwner = user?.id === course?.teacher_id || (user?.role === 'school_admin');
+
+    const { data: courseRatings = [] } = useQuery<any[]>({
+        queryKey: ['course-ratings', id],
+        queryFn: () => api.get(`/api/courses/${id}/ratings`).then(r => r.data),
+        enabled: !!id && isOwner,
+    });
+
     if (isLoading) return <div className="p-8 text-center text-gray-500 italic">Loading course...</div>;
     if (!course) return <div className="p-8 text-center text-red-500">Course not found</div>;
 
-    const isOwner = user?.id === course.teacher_id || (user?.role === 'school_admin');
 
     return (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -415,6 +614,11 @@ export default function CourseDetail() {
                                 </div>
                             </div>
                         )}
+                        {course.rating_avg !== undefined && course.rating_avg > 0 && (
+                            <div className="flex items-center gap-2">
+                                <RatingDisplay rating={course.rating_avg} count={course.rating_count} size={20} />
+                            </div>
+                        )}
                         {course.language && (
                             <div className="flex items-center gap-2">
                                 <Globe className="h-4 w-4 text-indigo-300" />
@@ -439,6 +643,17 @@ export default function CourseDetail() {
                                 <div>
                                     <div className="text-xs text-indigo-300">Difficulty</div>
                                     <span className="text-sm text-white capitalize">{course.difficulty}</span>
+                                </div>
+                            </div>
+                        )}
+                        {studentEnrollment && (
+                            <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-indigo-300" />
+                                <div>
+                                    <div className="text-xs text-indigo-300">Enrolled On</div>
+                                    <span className="text-sm text-white">
+                                        {new Date(studentEnrollment.enrolled_at).toLocaleDateString()}
+                                    </span>
                                 </div>
                             </div>
                         )}
@@ -523,9 +738,14 @@ export default function CourseDetail() {
                             </button>
                         )}
                         {isStudent && enrollment?.status === 'active' && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 text-emerald-100 text-sm font-medium rounded-lg">
-                                <Check className="h-4 w-4" /> Enrolled
-                            </span>
+                            <div className="flex items-center gap-3">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 text-emerald-100 text-sm font-medium rounded-lg">
+                                    <Check className="h-4 w-4" /> Enrolled
+                                </span>
+                                <span className="text-xs text-indigo-200">
+                                    Enrolled on {new Date(enrollment.enrolled_at).toLocaleDateString()}
+                                </span>
+                            </div>
                         )}
                         {isOwner && (
                             <button
@@ -617,23 +837,33 @@ export default function CourseDetail() {
 
             {/* Tabs */}
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 overflow-x-auto">
-                {(['overview', 'topics', 'grades', 'attendance', 'students'] as const).map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                    >
-                        {tab === 'overview' && <BookOpen className="inline h-4 w-4 mr-1" />}
-                        {tab === 'topics' && <GraduationCap className="inline h-4 w-4 mr-1" />}
-                        {tab === 'grades' && <BarChart3 className="inline h-4 w-4 mr-1" />}
-                        {tab === 'attendance' && <ClipboardList className="inline h-4 w-4 mr-1" />}
-                        {tab === 'students' && <Users className="inline h-4 w-4 mr-1" />}
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        {tab === 'topics' && <span className="ml-1 text-xs text-gray-400">{topics.length}</span>}
-                        {tab === 'grades' && <span className="ml-1 text-xs text-gray-400">{grades.length}</span>}
-                        {tab === 'students' && <span className="ml-1 text-xs text-gray-400">{roster.length}</span>}
-                    </button>
-                ))}
+                {(['overview', 'topics', 'grades', 'attendance', 'students', 'reviews'] as const)
+                    .filter(tab => tab !== 'reviews' || isOwner || isSchoolAdmin)
+                    .map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`relative flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
+                            {tab === 'overview' && <BookOpen className="inline h-4 w-4 mr-1" />}
+                            {tab === 'topics' && <GraduationCap className="inline h-4 w-4 mr-1" />}
+                            {tab === 'grades' && <BarChart3 className="inline h-4 w-4 mr-1" />}
+                            {tab === 'attendance' && <ClipboardList className="inline h-4 w-4 mr-1" />}
+                            {tab === 'students' && <Users className="inline h-4 w-4 mr-1" />}
+                            {tab === 'reviews' && <Star className="inline h-4 w-4 mr-1" />}
+                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            {tab === 'topics' && <span className="ml-1 text-xs text-gray-400">{topics.length}</span>}
+                            {tab === 'grades' && <span className="ml-1 text-xs text-gray-400">{grades.length}</span>}
+                            {tab === 'students' && <span className="ml-1 text-xs text-gray-400">{roster.length}</span>}
+                            {tab === 'reviews' && courseRatings && <span className="ml-1 text-xs text-gray-400">{courseRatings.length}</span>}
+                            {tab === 'students' && enrollments.some(e => e.status === 'pending') && (
+                                <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                </span>
+                            )}
+                        </button>
+                    ))}
             </div>
 
             {/* Overview Tab */}
@@ -806,41 +1036,17 @@ export default function CourseDetail() {
                                                 )}
                                             </div>
                                             {expandedTopics.has(topic.id) && (
-                                                <div className="px-5 pb-4 border-t border-gray-100 pt-3">
-                                                    {topic.description ? (
-                                                        <p className="text-sm text-gray-600 leading-relaxed">{topic.description}</p>
-                                                    ) : (
-                                                        <p className="text-sm text-gray-400 italic">No description</p>
-                                                    )}
-                                                    {isOwner && (
-                                                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-                                                            <button
-                                                                onClick={() => setEditingTopic(topic.id)}
-                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                                                            >
-                                                                <Pencil className="h-3 w-3" /> Edit
-                                                            </button>
-                                                            <button
-                                                                onClick={() => updateTopicMutation.mutate({
-                                                                    topicId: topic.id,
-                                                                    title: topic.title,
-                                                                    description: topic.description,
-                                                                    sort_order: topic.sort_order,
-                                                                    visible: !topic.visible,
-                                                                })}
-                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
-                                                            >
-                                                                {topic.visible ? <><EyeOff className="h-3 w-3" /> Hide</> : <><Eye className="h-3 w-3" /> Show</>}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => { if (confirm('Delete this topic?')) deleteTopicMutation.mutate(topic.id); }}
-                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                                            >
-                                                                <Trash2 className="h-3 w-3" /> Delete
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <TopicExpandedContent
+                                                    topic={topic}
+                                                    courseId={id!}
+                                                    isOwner={isOwner}
+                                                    uploadingTopicId={uploadingTopicId}
+                                                    setUploadingTopicId={setUploadingTopicId}
+                                                    setEditingTopic={setEditingTopic}
+                                                    updateTopicMutation={updateTopicMutation}
+                                                    deleteTopicMutation={deleteTopicMutation}
+                                                    queryClient={queryClient}
+                                                />
                                             )}
                                         </>
                                     )}
@@ -916,7 +1122,6 @@ export default function CourseDetail() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-sm font-medium text-gray-900">{s.student_name}</div>
                                             </div>
-                                            <Star className="h-4 w-4 text-gray-200" />
                                         </Link>
                                     ))}
                                 </div>
@@ -1027,6 +1232,43 @@ export default function CourseDetail() {
                         <div className="py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
                             <ClipboardList className="mx-auto h-8 w-8 text-gray-300 mb-2" />
                             <p className="text-sm text-gray-500">No attendance records for {attendanceDate}</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Reviews Tab */}
+            {activeTab === 'reviews' && (
+                <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-gray-900">Course Reviews</h2>
+                    {courseRatings && courseRatings.length > 0 ? (
+                        <div className="grid gap-4">
+                            {courseRatings.map((r: any) => (
+                                <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
+                                                {r.reviewer_name?.charAt(0) || '?'}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-900">{r.reviewer_name}</p>
+                                                <p className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <RatingDisplay rating={r.score} size={14} />
+                                        </div>
+                                    </div>
+                                    {r.comment && (
+                                        <p className="text-sm text-gray-600 italic mt-2">"{r.comment}"</p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                            <Star className="mx-auto h-8 w-8 text-gray-300" />
+                            <p className="mt-2 text-sm text-gray-500">No reviews yet</p>
                         </div>
                     )}
                 </div>

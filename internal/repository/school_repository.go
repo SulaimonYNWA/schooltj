@@ -76,9 +76,10 @@ func (r *SchoolRepository) GetSchoolByAdminID(ctx context.Context, adminID strin
 
 func (r *SchoolRepository) ListTeachers(ctx context.Context, schoolID string) ([]domain.User, error) {
 	query := `
-		SELECT u.id, u.email, u.name, u.role, u.avatar_url, u.rating_avg, u.rating_count, u.created_at, u.updated_at
+		SELECT u.id, u.email, u.name, u.role, u.avatar_url, u.rating_avg, u.rating_count, u.created_at, u.updated_at, s.name as school_name
 		FROM users u
 		JOIN teacher_profiles tp ON u.id = tp.user_id
+		LEFT JOIN schools s ON tp.school_id = s.id
 		WHERE tp.school_id = ?
 		ORDER BY u.rating_avg DESC, u.created_at DESC
 	`
@@ -91,8 +92,12 @@ func (r *SchoolRepository) ListTeachers(ctx context.Context, schoolID string) ([
 	var teachers []domain.User
 	for rows.Next() {
 		var u domain.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.AvatarURL, &u.RatingAvg, &u.RatingCount, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		var schoolName sql.NullString
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.AvatarURL, &u.RatingAvg, &u.RatingCount, &u.CreatedAt, &u.UpdatedAt, &schoolName); err != nil {
 			return nil, err
+		}
+		if schoolName.Valid {
+			u.SchoolName = &schoolName.String
 		}
 		teachers = append(teachers, u)
 	}

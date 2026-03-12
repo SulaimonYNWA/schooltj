@@ -45,7 +45,8 @@ func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domai
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 		       COALESCE(u.email, '') as teacher_email,
 		       u.avatar_url,
-		       COALESCE(s.name, '') as school_name
+		       COALESCE(s.name, '') as school_name,
+		       c.rating_avg, c.rating_count
 		FROM courses c
 		LEFT JOIN users u ON c.teacher_id = u.id
 		LEFT JOIN schools s ON c.school_id = s.id
@@ -68,7 +69,7 @@ func (r *CourseRepository) GetCourseByID(ctx context.Context, id string) (*domai
 
 	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
 		&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt,
-		&teacherName, &teacherEmail, &avatarURL, &schoolName)
+		&teacherName, &teacherEmail, &avatarURL, &schoolName, &course.RatingAvg, &course.RatingCount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCourseNotFound
@@ -112,11 +113,18 @@ type CourseFilter struct {
 	CategoryID *string
 	Difficulty *string
 	Tag        *string
+	UserID     *string
 }
 
 func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter) ([]*domain.Course, error) {
 	var conditions []string
 	var args []interface{}
+
+	var userID string
+	if filter.UserID != nil {
+		userID = *filter.UserID
+	}
+	args = append(args, userID)
 
 	if filter.SchoolID != nil {
 		conditions = append(conditions, "c.school_id = ?")
@@ -145,11 +153,15 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
 			   u.avatar_url,
-		       COALESCE(s.name, '') as school_name
+		       COALESCE(s.name, '') as school_name,
+			   (SELECT COUNT(*) FROM enrollments e2 WHERE e2.course_id = c.id AND e2.status = 'pending') as pending_requests_count,
+			   COALESCE(cv.view_count, 0) as view_count,
+			   c.rating_avg, c.rating_count
 		FROM courses c
 		LEFT JOIN users u ON c.teacher_id = u.id
 		LEFT JOIN schools s ON c.school_id = s.id
 		LEFT JOIN categories cat ON c.category_id = cat.id
+		LEFT JOIN course_views cv ON cv.course_id = c.id AND cv.student_id = ?
 	`
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
@@ -178,7 +190,7 @@ func (r *CourseRepository) ListCourses(ctx context.Context, filter CourseFilter)
 		var catName sql.NullString
 
 		if err := rows.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
-			&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName); err != nil {
+			&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName, &course.PendingRequestsCount, &course.ViewCount, &course.RatingAvg, &course.RatingCount); err != nil {
 			return nil, err
 		}
 
@@ -337,15 +349,21 @@ type EnrollmentWithCourse struct {
 func (r *CourseRepository) GetStudentEnrollmentsWithCourse(ctx context.Context, studentID string) ([]EnrollmentWithCourse, error) {
 	query := `
 		SELECT e.id, e.student_user_id, e.course_id, e.enrolled_at, e.status,
-		       c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.created_at, c.updated_at,
+		       c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language,
+			   c.category_id, cat.name as category_name, c.difficulty, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
 			   u.avatar_url,
-		       COALESCE(s.name, '') as school_name
+		       COALESCE(s.name, '') as school_name,
+			   (SELECT COUNT(*) FROM enrollments e2 WHERE e2.course_id = c.id AND e2.status = 'pending') as pending_requests_count,
+			   COALESCE(cv.view_count, 0) as view_count,
+			   c.rating_avg, c.rating_count
 		FROM enrollments e
 		JOIN courses c ON e.course_id = c.id
 		LEFT JOIN users u ON c.teacher_id = u.id
 		LEFT JOIN schools s ON c.school_id = s.id
+		LEFT JOIN categories cat ON c.category_id = cat.id
+		LEFT JOIN course_views cv ON cv.course_id = c.id AND cv.student_id = e.student_user_id
 		WHERE e.student_user_id = ?
 		ORDER BY e.enrolled_at DESC
 	`
@@ -367,11 +385,14 @@ func (r *CourseRepository) GetStudentEnrollmentsWithCourse(ctx context.Context, 
 		var coverImageURL sql.NullString
 		var schoolName sql.NullString
 
+		var catID sql.NullString
+		var catName sql.NullString
+
 		err := rows.Scan(
 			&ec.Enrollment.ID, &ec.Enrollment.StudentUserID, &ec.Enrollment.CourseID, &ec.Enrollment.EnrolledAt, &ec.Enrollment.Status,
 			&ec.Course.ID, &ec.Course.Title, &ec.Course.Description, &scheduleJSON, &schoolID, &teacherID,
-			&ec.Course.Price, &coverImageURL, &ec.Course.CreatedAt, &ec.Course.UpdatedAt,
-			&teacherName, &teacherEmail, &avatarURL, &schoolName,
+			&ec.Course.Price, &coverImageURL, &ec.Course.Language, &catID, &catName, &ec.Course.Difficulty, &ec.Course.CreatedAt, &ec.Course.UpdatedAt,
+			&teacherName, &teacherEmail, &avatarURL, &schoolName, &ec.Course.PendingRequestsCount, &ec.Course.ViewCount, &ec.Course.RatingAvg, &ec.Course.RatingCount,
 		)
 		if err != nil {
 			return nil, err
@@ -399,9 +420,25 @@ func (r *CourseRepository) GetStudentEnrollmentsWithCourse(ctx context.Context, 
 		if coverImageURL.Valid {
 			ec.Course.CoverImageURL = &coverImageURL.String
 		}
+		if catID.Valid {
+			ec.Course.CategoryID = &catID.String
+			ec.Course.CategoryName = catName.String
+		}
 		result = append(result, ec)
 	}
 	return result, nil
+}
+
+func (r *CourseRepository) IncrementCourseView(ctx context.Context, studentID, courseID string) error {
+	query := `
+		INSERT INTO course_views (student_id, course_id, view_count, last_viewed_at)
+		VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+		ON DUPLICATE KEY UPDATE 
+			view_count = view_count + 1,
+			last_viewed_at = CURRENT_TIMESTAMP
+	`
+	_, err := r.DB.ExecContext(ctx, query, studentID, courseID)
+	return err
 }
 
 func (r *CourseRepository) UpdateCoverImage(ctx context.Context, courseID string, url *string) error {
@@ -448,21 +485,25 @@ func (r *CourseRepository) DeleteCourse(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id string) (*domain.Course, error) {
+func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, userID, id string) (*domain.Course, error) {
 	query := `
 		SELECT c.id, c.title, c.description, c.schedule, c.school_id, c.teacher_id, c.price, c.cover_image_url, c.language, 
 		       c.category_id, cat.name as category_name, c.difficulty, c.created_at, c.updated_at,
 		       COALESCE(u.name, 'Unknown Teacher') as teacher_name,
 			   COALESCE(u.email, '') as teacher_email,
 			   u.avatar_url,
-		       COALESCE(s.name, '') as school_name
+		       COALESCE(s.name, '') as school_name,
+			   (SELECT COUNT(*) FROM enrollments e2 WHERE e2.course_id = c.id AND e2.status = 'pending') as pending_requests_count,
+			   COALESCE(cv.view_count, 0) as view_count,
+			   c.rating_avg, c.rating_count
 		FROM courses c
 		LEFT JOIN users u ON c.teacher_id = u.id
 		LEFT JOIN schools s ON c.school_id = s.id
 		LEFT JOIN categories cat ON c.category_id = cat.id
+		LEFT JOIN course_views cv ON cv.course_id = c.id AND cv.student_id = ?
 		WHERE c.id = ?
 	`
-	row := r.DB.QueryRowContext(ctx, query, id)
+	row := r.DB.QueryRowContext(ctx, query, userID, id)
 
 	var course domain.Course
 	var schoolID sql.NullString
@@ -478,7 +519,7 @@ func (r *CourseRepository) GetCourseByIDWithDetails(ctx context.Context, id stri
 	var catName sql.NullString
 
 	err := row.Scan(&course.ID, &course.Title, &course.Description, &scheduleJSON, &schoolID, &teacherID,
-		&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName)
+		&course.Price, &coverImageURL, &course.Language, &catID, &catName, &course.Difficulty, &course.CreatedAt, &course.UpdatedAt, &teacherName, &teacherEmail, &avatarURL, &schoolName, &course.PendingRequestsCount, &course.ViewCount, &course.RatingAvg, &course.RatingCount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCourseNotFound

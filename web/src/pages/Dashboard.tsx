@@ -2,8 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/axios';
 import {
-    Users, GraduationCap, DollarSign, BookOpen, Clock, Star, Eye,
-    TrendingUp, Calendar, Megaphone, UserPlus, BarChart3, Bell, ClipboardList
+    BookOpen, DollarSign, TrendingUp, UserPlus,
+    Clock, Calendar, BarChart3,
+    Megaphone, Users, Bell, ClipboardList, Eye, Star, Award
 } from 'lucide-react';
 import { timeAgo, formatTJS } from '../lib/utils';
 import CourseInvitationModal from '../components/CourseInvitationModal';
@@ -28,14 +29,15 @@ interface EnrollmentWithCourse {
         teacher_email?: string;
         school_name?: string;
         price: number;
+        view_count?: number;
     };
 }
 
 interface DashboardStats {
     total_students: number;
     total_courses: number;
-    total_teachers: number;
     total_revenue: number;
+    avg_grade?: number;
     active_enrolments: number;
     avg_attendance: number;
     recent_payments: number;
@@ -85,7 +87,7 @@ export default function Dashboard() {
 
     const respondMutation = useMutation({
         mutationFn: async ({ id, accept }: { id: string, accept: boolean }) => {
-            return api.post(`/api/invitations/${id}/respond`, { accept });
+            return api.post(`/ api / invitations / ${id}/respond`, { accept });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-enrollments'] });
@@ -175,7 +177,7 @@ function AdminDashboard({ user }: { user: any }) {
         { name: t('dashboard.stats.total_students'), value: stats?.total_students ?? 0, icon: Users, color: 'from-blue-500 to-blue-600', textColor: 'text-blue-600', link: '/students' },
         { name: t('dashboard.stats.active_courses'), value: stats?.total_courses ?? 0, icon: BookOpen, color: 'from-emerald-500 to-emerald-600', textColor: 'text-emerald-600', link: '/courses' },
         { name: t('dashboard.stats.revenue'), value: formatTJS(stats?.total_revenue ?? 0), icon: DollarSign, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-600', link: '/payments' },
-        { name: t('dashboard.stats.teachers'), value: stats?.total_teachers ?? 0, icon: GraduationCap, color: 'from-purple-500 to-purple-600', textColor: 'text-purple-600', link: '/teachers' },
+        { name: t('dashboard.stats.avg_grade', 'Average Grade'), value: stats?.avg_grade ? `${stats.avg_grade.toFixed(1)}%` : '0%', icon: Award, color: 'from-purple-500 to-purple-600', textColor: 'text-purple-600', link: '/courses' },
     ];
 
     const miniStats = [
@@ -533,7 +535,14 @@ function StudentDashboard({
                                 {activeCourses.map((item: EnrollmentWithCourse) => (
                                     <div key={item.enrollment.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
                                         <div className="px-5 py-4 flex-1">
-                                            <h3 className="text-base font-bold text-gray-900 truncate"><Link to={`/courses/${item.course.id}`} className="hover:text-indigo-600 hover:underline">{item.course.title}</Link></h3>
+                                            <div className="flex items-start justify-between gap-2">
+                                                <h3 className="text-base font-bold text-gray-900 truncate"><Link to={`/courses/${item.course.id}`} className="hover:text-indigo-600 hover:underline">{item.course.title}</Link></h3>
+                                                {item.course.view_count !== undefined && item.course.view_count < 3 && (
+                                                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-bold rounded uppercase tracking-wider shrink-0 shadow-sm">
+                                                        New
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{item.course.description}</p>
                                             {item.course.teacher_name && (
                                                 <p className="mt-2 text-sm text-gray-600">

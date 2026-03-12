@@ -54,6 +54,7 @@ func main() {
 	userRepo := repository.NewUserRepository(repo.DB)
 	schoolRepo := repository.NewSchoolRepository(repo.DB)
 	studentRepo := repository.NewStudentRepository(repo.DB)
+	teacherRepo := repository.NewTeacherRepository(repo.DB) // Added TeacherRepo
 	authService := service.NewAuthService(userRepo, schoolRepo, studentRepo, jwtSecret)
 	authHandler := handler.NewAuthHandler(authService)
 	courseRepo := repository.NewCourseRepository(repo.DB)
@@ -68,6 +69,8 @@ func main() {
 	ratingHandler := handler.NewRatingHandler(ratingService, ratingRepo)
 	studentService := service.NewStudentService(studentRepo)
 	studentHandler := handler.NewStudentHandler(studentService)
+	teacherService := service.NewTeacherService(teacherRepo)    // Added TeacherService
+	teacherHandler := handler.NewTeacherHandler(teacherService) // Added TeacherHandler
 	attendanceRepo := repository.NewAttendanceRepository(repo.DB)
 	attendanceService := service.NewAttendanceService(attendanceRepo)
 	attendanceHandler := handler.NewAttendanceHandler(attendanceService)
@@ -162,6 +165,11 @@ func main() {
 		r.Get("/api/users/{id}", authHandler.GetPublicProfile)
 		r.Get("/api/schools/teachers", schoolHandler.ListTeachers)
 		r.Post("/api/schools/teachers", schoolHandler.AddTeacher)
+
+		// Global Teachers APIs
+		r.Get("/api/teachers", teacherHandler.ListAllTeachers) // Added new route
+
+		// Student APIs
 		r.Get("/api/schools", schoolHandler.ListSchools)
 		r.Get("/api/schools/{id}", schoolHandler.GetSchoolDetail)
 		r.Put("/api/schools/my", schoolHandler.UpdateSchool)
@@ -196,9 +204,15 @@ func main() {
 		r.Get("/api/materials/{id}/download", courseContentHandler.DownloadMaterial)
 		r.Delete("/api/materials/{id}", courseContentHandler.DeleteMaterial)
 
+		// Topic-scoped materials
+		r.Post("/api/courses/{id}/curriculum/{topicId}/materials", courseContentHandler.UploadTopicMaterial)
+		r.Get("/api/courses/{id}/curriculum/{topicId}/materials", courseContentHandler.ListTopicMaterials)
+
 		// Rating routes
 		r.Post("/api/ratings", ratingHandler.SubmitRating)
 		r.Get("/api/schools/{id}/ratings", ratingHandler.ListSchoolRatings)
+		r.Get("/api/users/{id}/ratings", ratingHandler.ListUserRatings)
+		r.Get("/api/courses/{id}/ratings", ratingHandler.ListCourseRatings)
 
 		// Student routes
 		r.Get("/api/students", studentHandler.List)

@@ -158,7 +158,7 @@ func (h *CourseContentHandler) UploadMaterial(w http.ResponseWriter, r *http.Req
 	}
 	defer file.Close()
 
-	material, err := h.service.UploadMaterial(r.Context(), userID, courseID, header, file)
+	material, err := h.service.UploadMaterial(r.Context(), userID, courseID, nil, header, file)
 	if err != nil {
 		log.Printf("[CourseContentHandler.UploadMaterial] error: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -222,4 +222,57 @@ func (h *CourseContentHandler) DeleteMaterial(w http.ResponseWriter, r *http.Req
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "material deleted"})
+}
+
+// ── Topic Materials ──
+
+func (h *CourseContentHandler) UploadTopicMaterial(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	courseID := chi.URLParam(r, "id")
+	topicID := chi.URLParam(r, "topicId")
+
+	// 32 MB max
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "file too large or invalid form", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "missing file field", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	material, err := h.service.UploadMaterial(r.Context(), userID, courseID, &topicID, header, file)
+	if err != nil {
+		log.Printf("[CourseContentHandler.UploadTopicMaterial] error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(material)
+}
+
+func (h *CourseContentHandler) ListTopicMaterials(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
+	if !ok || !okRole {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	topicID := chi.URLParam(r, "topicId")
+
+	materials, err := h.service.ListTopicMaterials(r.Context(), userID, role, topicID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(materials)
 }

@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
-import { Building2, MapPin, Star, Users, CheckCircle, BookOpen, Globe, Phone, Mail, ExternalLink, MessageSquare, GraduationCap } from 'lucide-react';
+import { Building2, MapPin, Users, CheckCircle, BookOpen, Globe, Phone, Mail, ExternalLink, MessageSquare, GraduationCap, Plus, X } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useState } from 'react';
+import RatingDisplay from '../components/RatingDisplay';
 
 interface School {
     id: string;
@@ -54,8 +55,44 @@ interface Rating {
 export default function SchoolDetail() {
     const { id } = useParams<{ id: string }>();
     const { user } = useAuth();
+    const queryClient = useQueryClient();
     const [langFilter, setLangFilter] = useState('');
     const [activeTab, setActiveTab] = useState<'courses' | 'teachers' | 'reviews'>('courses');
+
+    const [isAddTeacherOpen, setIsAddTeacherOpen] = useState(false);
+    const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
+    const [teacherForm, setTeacherForm] = useState({ email: '', password: '', bio: '' });
+    const [courseForm, setCourseForm] = useState({
+        title: '', description: '', price: 0, language: '', category_id: '', difficulty: 'beginner', tags: '', teacher_id: ''
+    });
+
+    const { data: categories } = useQuery<{ id: string, name: string }[]>({
+        queryKey: ['categories'],
+        queryFn: async () => {
+            const res = await api.get('/api/categories');
+            return res.data;
+        }
+    });
+
+    const addTeacherMutation = useMutation({
+        mutationFn: (data: any) => api.post('/api/schools/teachers', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['school', id] });
+            setIsAddTeacherOpen(false);
+            setTeacherForm({ email: '', password: '', bio: '' });
+        },
+        onError: (err: any) => alert('Failed to add teacher: ' + (err.response?.data || err.message))
+    });
+
+    const addCourseMutation = useMutation({
+        mutationFn: (data: any) => api.post('/api/courses', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['school', id] });
+            setIsAddCourseOpen(false);
+            setCourseForm({ title: '', description: '', price: 0, language: '', category_id: '', difficulty: 'beginner', tags: '', teacher_id: '' });
+        },
+        onError: (err: any) => alert('Failed to add course: ' + (err.response?.data || err.message))
+    });
 
     const { data: school, isLoading } = useQuery<School>({
         queryKey: ['school', id],
@@ -91,9 +128,7 @@ export default function SchoolDetail() {
     };
 
     const renderStars = (score: number) => {
-        return Array.from({ length: 10 }, (_, i) => (
-            <Star key={i} className={`h-3.5 w-3.5 ${i < score ? 'text-amber-400' : 'text-gray-200'}`} fill={i < score ? '#fbbf24' : 'none'} />
-        ));
+        return <RatingDisplay rating={score} size={14} />;
     };
 
     return (
@@ -136,9 +171,7 @@ export default function SchoolDetail() {
                         <div>
                             <div className="text-xs text-blue-300 uppercase tracking-wide">Rating</div>
                             <div className="flex items-center gap-2 mt-1">
-                                <Star className="h-5 w-5 text-amber-300" fill="#fcd34d" />
-                                <span className="text-xl font-bold text-white">{school.rating_avg?.toFixed(1) || '—'}</span>
-                                <span className="text-sm text-blue-300">({school.rating_count} reviews)</span>
+                                <RatingDisplay rating={school.rating_avg} count={school.rating_count} size={20} />
                             </div>
                         </div>
                         <div>
@@ -222,22 +255,33 @@ export default function SchoolDetail() {
             {/* Courses Tab */}
             {activeTab === 'courses' && (
                 <div>
-                    {/* Language Filter */}
-                    {languages.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            <button
-                                onClick={() => setLangFilter('')}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${!langFilter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                            >All</button>
-                            {languages.map(lang => (
+                    <div className="flex items-center justify-between mb-4">
+                        {/* Language Filter */}
+                        {languages.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
                                 <button
-                                    key={lang}
-                                    onClick={() => setLangFilter(lang!)}
-                                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${langFilter === lang ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                                >{lang}</button>
-                            ))}
-                        </div>
-                    )}
+                                    onClick={() => setLangFilter('')}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${!langFilter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                >All</button>
+                                {languages.map(lang => (
+                                    <button
+                                        key={lang}
+                                        onClick={() => setLangFilter(lang!)}
+                                        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${langFilter === lang ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                    >{lang}</button>
+                                ))}
+                            </div>
+                        ) : <div />}
+
+                        {isAdmin && (
+                            <button
+                                onClick={() => setIsAddCourseOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                <Plus className="h-4 w-4" /> Add Course
+                            </button>
+                        )}
+                    </div>
 
                     {filteredCourses.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -275,36 +319,46 @@ export default function SchoolDetail() {
 
             {/* Teachers Tab */}
             {activeTab === 'teachers' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    {school.teachers && school.teachers.length > 0 ? (
-                        <div className="divide-y divide-gray-50">
-                            {school.teachers.map(t => (
-                                <Link key={t.id} to={`/users/${t.id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
-                                    {t.avatar_url ? (
-                                        <img src={t.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
-                                    ) : (
-                                        <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold">
-                                            {(t.name || t.email).charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-900">{t.name || t.email}</div>
-                                        <div className="text-xs text-gray-500">{t.email}</div>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <Star className="h-4 w-4 text-amber-400" fill="#fbbf24" />
-                                        <span className="text-sm font-semibold text-gray-900">{t.rating_avg?.toFixed(1) || '—'}</span>
-                                        <span className="text-xs text-gray-400">({t.rating_count})</span>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-12 text-center text-gray-400">
-                            <Users className="mx-auto h-8 w-8 mb-2 opacity-50" />
-                            <p className="text-sm">No teachers registered yet</p>
+                <div>
+                    {isAdmin && (
+                        <div className="flex justify-end mb-4">
+                            <button
+                                onClick={() => setIsAddTeacherOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                <Plus className="h-4 w-4" /> Add Teacher
+                            </button>
                         </div>
                     )}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        {school.teachers && school.teachers.length > 0 ? (
+                            <div className="divide-y divide-gray-50">
+                                {school.teachers.map(t => (
+                                    <Link key={t.id} to={`/users/${t.id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
+                                        {t.avatar_url ? (
+                                            <img src={t.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                                        ) : (
+                                            <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold">
+                                                {(t.name || t.email).charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-medium text-gray-900">{t.name || t.email}</div>
+                                            <div className="text-xs text-gray-500">{t.email}</div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <RatingDisplay rating={t.rating_avg} count={t.rating_count} size={14} />
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="py-12 text-center text-gray-400">
+                                <Users className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                                <p className="text-sm">No teachers registered yet</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -324,9 +378,8 @@ export default function SchoolDetail() {
                                             <div className="text-xs text-gray-400 mt-0.5">{timeAgo(r.created_at)}</div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-full">
-                                        <Star className="h-3.5 w-3.5 text-amber-500" fill="#f59e0b" />
-                                        <span className="text-sm font-bold text-amber-700">{r.score}/10</span>
+                                    <div className="flex items-center gap-1">
+                                        <RatingDisplay rating={r.score} size={14} />
                                     </div>
                                 </div>
                                 <div className="flex gap-0.5 mt-3">
@@ -349,6 +402,163 @@ export default function SchoolDetail() {
             <div className="mt-6 text-center">
                 <Link to="/schools" className="text-sm text-gray-500 hover:text-blue-600 transition-colors">← Back to Schools</Link>
             </div>
+
+            {/* Add Teacher Modal */}
+            {isAddTeacherOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
+                        <button onClick={() => setIsAddTeacherOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                            <X className="h-5 w-5" />
+                        </button>
+                        <h2 className="text-xl font-bold text-gray-900 mb-4">Add New Teacher</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                                <input
+                                    type="email"
+                                    value={teacherForm.email}
+                                    onChange={e => setTeacherForm({ ...teacherForm, email: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                                <input
+                                    type="text"
+                                    value={teacherForm.password}
+                                    onChange={e => setTeacherForm({ ...teacherForm, password: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Temp password for the teacher"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Bio (Optional)</label>
+                                <textarea
+                                    value={teacherForm.bio}
+                                    onChange={e => setTeacherForm({ ...teacherForm, bio: e.target.value })}
+                                    rows={3}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <button
+                                onClick={() => addTeacherMutation.mutate(teacherForm)}
+                                disabled={!teacherForm.email || !teacherForm.password || addTeacherMutation.isPending}
+                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                                {addTeacherMutation.isPending ? 'Adding...' : 'Add Teacher'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Course Modal */}
+            {isAddCourseOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl max-w-lg w-full p-6 relative max-h-[90vh] overflow-y-auto">
+                        <button onClick={() => setIsAddCourseOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                            <X className="h-5 w-5" />
+                        </button>
+                        <h2 className="text-xl font-bold text-gray-900 mb-4">Add New Course</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                                <input
+                                    type="text"
+                                    value={courseForm.title}
+                                    onChange={e => setCourseForm({ ...courseForm, title: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <textarea
+                                    value={courseForm.description}
+                                    onChange={e => setCourseForm({ ...courseForm, description: e.target.value })}
+                                    rows={2}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (TJS)</label>
+                                    <input
+                                        type="number"
+                                        value={courseForm.price}
+                                        onChange={e => setCourseForm({ ...courseForm, price: parseFloat(e.target.value) || 0 })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                                    <input
+                                        type="text"
+                                        value={courseForm.language}
+                                        onChange={e => setCourseForm({ ...courseForm, language: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                    <select
+                                        value={courseForm.category_id}
+                                        onChange={e => setCourseForm({ ...courseForm, category_id: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="">Select Category</option>
+                                        {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
+                                    <select
+                                        value={courseForm.difficulty}
+                                        onChange={e => setCourseForm({ ...courseForm, difficulty: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="beginner">Beginner</option>
+                                        <option value="intermediate">Intermediate</option>
+                                        <option value="advanced">Advanced</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
+                                <input
+                                    type="text"
+                                    value={courseForm.tags}
+                                    onChange={e => setCourseForm({ ...courseForm, tags: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Teacher *</label>
+                                <select
+                                    value={courseForm.teacher_id}
+                                    onChange={e => setCourseForm({ ...courseForm, teacher_id: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="">Select Teacher</option>
+                                    {school.teachers?.map(t => <option key={t.id} value={t.id}>{t.name || t.email}</option>)}
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => addCourseMutation.mutate({
+                                    ...courseForm,
+                                    category_id: courseForm.category_id || null,
+                                    tags: courseForm.tags.split(',').map(s => s.trim()).filter(Boolean)
+                                })}
+                                disabled={!courseForm.title || !courseForm.teacher_id || addCourseMutation.isPending}
+                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                                {addCourseMutation.isPending ? 'Adding...' : 'Add Course'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

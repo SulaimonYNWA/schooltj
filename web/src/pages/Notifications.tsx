@@ -43,6 +43,47 @@ export default function Notifications() {
         },
     });
 
+    // WebSocket connection for real-time notifications
+    useEffect(() => {
+        const token = localStorage.getItem('token') || '';
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+
+        let ws: WebSocket;
+        let reconnectTimeout: ReturnType<typeof setTimeout>;
+
+        const connect = () => {
+            ws = new WebSocket(wsUrl);
+
+            ws.onclose = () => {
+                // Try to reconnect after 3 seconds
+                reconnectTimeout = setTimeout(connect, 3000);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    if (event.data !== ": connected") {
+                        const data = JSON.parse(event.data);
+                        // Invalidate queries when a new notification is broadcasted
+                        if (data.type === 'new_notification') {
+                            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                            queryClient.invalidateQueries({ queryKey: ['notif-unread'] });
+                        }
+                    }
+                } catch (e) {
+                    console.log("WebSocket message parse error:", e);
+                }
+            };
+        };
+
+        connect();
+
+        return () => {
+            clearTimeout(reconnectTimeout);
+            if (ws) ws.close();
+        };
+    }, [queryClient]);
+
     // Auto-mark all as read when page opens
     useEffect(() => {
         const hasUnread = notifications.some(n => !n.is_read);

@@ -25,8 +25,8 @@ func (r *RatingRepository) CreateRating(ctx context.Context, rating *domain.Rati
 	defer tx.Rollback()
 
 	rating.ID = uuid.New().String()
-	query := `INSERT INTO ratings (id, from_user_id, to_user_id, to_school_id, score, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`
-	_, err = tx.ExecContext(ctx, query, rating.ID, rating.FromUserID, rating.ToUserID, rating.ToSchoolID, rating.Score, rating.Comment)
+	query := `INSERT INTO ratings (id, from_user_id, to_user_id, to_school_id, to_course_id, score, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`
+	_, err = tx.ExecContext(ctx, query, rating.ID, rating.FromUserID, rating.ToUserID, rating.ToSchoolID, rating.ToCourseID, rating.Score, rating.Comment)
 	if err != nil {
 		return err
 	}
@@ -46,6 +46,13 @@ func (r *RatingRepository) CreateRating(ctx context.Context, rating *domain.Rati
 			    rating_count = (SELECT COUNT(*) FROM ratings WHERE to_school_id = ?)
 			WHERE id = ?`
 		_, err = tx.ExecContext(ctx, updateQuery, *rating.ToSchoolID, *rating.ToSchoolID, *rating.ToSchoolID)
+	} else if rating.ToCourseID != nil {
+		updateQuery := `
+			UPDATE courses 
+			SET rating_avg = (SELECT AVG(score) FROM ratings WHERE to_course_id = ?),
+			    rating_count = (SELECT COUNT(*) FROM ratings WHERE to_course_id = ?)
+			WHERE id = ?`
+		_, err = tx.ExecContext(ctx, updateQuery, *rating.ToCourseID, *rating.ToCourseID, *rating.ToCourseID)
 	}
 
 	if err != nil {
@@ -55,7 +62,7 @@ func (r *RatingRepository) CreateRating(ctx context.Context, rating *domain.Rati
 	return tx.Commit()
 }
 
-func (r *RatingRepository) CheckCollaboration(ctx context.Context, fromUserID string, toUserID *string, toSchoolID *string) (bool, error) {
+func (r *RatingRepository) CheckCollaboration(ctx context.Context, fromUserID string, toUserID *string, toSchoolID *string, toCourseID *string) (bool, error) {
 	if toUserID != nil {
 		// Users collaborate if they share a course (one is teacher, one is student, OR both are students in same course)
 		query := `
@@ -101,12 +108,77 @@ func (r *RatingRepository) CheckCollaboration(ctx context.Context, fromUserID st
 		return exists, err
 	}
 
+	if toCourseID != nil {
+		// User can rate course if they are enrolled in it (active or completed)
+		query := `
+			SELECT EXISTS (
+				SELECT 1 FROM enrollments 
+				WHERE student_user_id = ? AND course_id = ? AND status IN ('active', 'completed')
+			)
+		`
+		var exists bool
+		err := r.DB.QueryRowContext(ctx, query, fromUserID, *toCourseID).Scan(&exists)
+		return exists, err
+	}
+
 	return false, errors.New("invalid target for collaboration check")
+}
+
+func (r *RatingRepository) ListRatingsForCourse(ctx context.Context, courseID string) ([]RatingWithReviewer, error) {
+	query := `
+		SELECT rat.id, rat.from_user_id, rat.to_user_id, rat.to_school_id, rat.to_course_id, rat.score, COALESCE(rat.comment, ''), rat.created_at,
+		       COALESCE(u.name, u.email) as reviewer_name
+		FROM ratings rat
+		JOIN users u ON rat.from_user_id = u.id
+		WHERE rat.to_course_id = ?
+		ORDER BY rat.created_at DESC
+	`
+	rows, err := r.DB.QueryContext(ctx, query, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ratings []RatingWithReviewer
+	for rows.Next() {
+		var rr RatingWithReviewer
+		if err := rows.Scan(&rr.ID, &rr.FromUserID, &rr.ToUserID, &rr.ToSchoolID, &rr.ToCourseID, &rr.Score, &rr.Comment, &rr.CreatedAt, &rr.ReviewerName); err != nil {
+			return nil, err
+		}
+		ratings = append(ratings, rr)
+	}
+	return ratings, nil
 }
 
 type RatingWithReviewer struct {
 	domain.Rating
 	ReviewerName string `json:"reviewer_name"`
+}
+
+func (r *RatingRepository) ListRatingsForUser(ctx context.Context, userID string) ([]RatingWithReviewer, error) {
+	query := `
+		SELECT rat.id, rat.from_user_id, rat.to_user_id, rat.to_school_id, rat.score, COALESCE(rat.comment, ''), rat.created_at,
+		       COALESCE(u.name, u.email) as reviewer_name
+		FROM ratings rat
+		JOIN users u ON rat.from_user_id = u.id
+		WHERE rat.to_user_id = ?
+		ORDER BY rat.created_at DESC
+	`
+	rows, err := r.DB.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ratings []RatingWithReviewer
+	for rows.Next() {
+		var rr RatingWithReviewer
+		if err := rows.Scan(&rr.ID, &rr.FromUserID, &rr.ToUserID, &rr.ToSchoolID, &rr.Score, &rr.Comment, &rr.CreatedAt, &rr.ReviewerName); err != nil {
+			return nil, err
+		}
+		ratings = append(ratings, rr)
+	}
+	return ratings, nil
 }
 
 func (r *RatingRepository) ListRatingsForSchool(ctx context.Context, schoolID string) ([]RatingWithReviewer, error) {

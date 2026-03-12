@@ -22,7 +22,7 @@ export default function Sidebar() {
             name: t('nav.teachers'),
             href: '/teachers',
             icon: Users,
-            visible: user?.role === 'school_admin'
+            visible: user?.role === 'school_admin' || user?.role === 'admin'
         },
         {
             name: t('nav.courses'),
@@ -40,7 +40,7 @@ export default function Sidebar() {
             name: t('nav.timetable'),
             href: '/timetable',
             icon: Clock,
-            visible: user?.role === 'student' || user?.role === 'teacher'
+            visible: user?.role === 'student' || user?.role === 'teacher' || user?.role === 'admin'
         },
         {
             name: t('nav.grades'),
@@ -58,13 +58,13 @@ export default function Sidebar() {
             name: t('nav.students'),
             href: '/students',
             icon: Users,
-            visible: user?.role === 'school_admin' || user?.role === 'teacher'
+            visible: user?.role === 'school_admin' || user?.role === 'teacher' || user?.role === 'admin'
         },
         {
             name: t('nav.attendance'),
             href: '/attendance',
             icon: Calendar,
-            visible: user?.role === 'teacher' || user?.role === 'school_admin' || user?.role === 'student'
+            visible: user?.role === 'teacher' || user?.role === 'school_admin' || user?.role === 'student' || user?.role === 'admin'
         },
         {
             name: t('nav.payments'),
@@ -95,7 +95,7 @@ export default function Sidebar() {
             name: t('nav.reports'),
             href: '/reports',
             icon: BarChart3,
-            visible: user?.role === 'school_admin'
+            visible: user?.role === 'school_admin' || user?.role === 'admin'
         },
         { name: t('nav.profile'), href: '/profile', icon: User, visible: true },
         { name: t('nav.settings'), href: '/settings', icon: Settings, visible: true },

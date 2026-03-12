@@ -30,12 +30,12 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 }
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT id, email, name, password_hash, role, avatar_url, created_at, updated_at FROM users WHERE email = ?`
+	query := `SELECT id, email, name, password_hash, role, avatar_url, rating_avg, rating_count, created_at, updated_at FROM users WHERE email = ?`
 	row := r.DB.QueryRowContext(ctx, query, email)
 
 	var user domain.User
 	var avatarURL sql.NullString
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &avatarURL, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &avatarURL, &user.RatingAvg, &user.RatingCount, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -49,12 +49,12 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*domain.User, error) {
-	query := `SELECT id, email, name, password_hash, role, avatar_url, created_at, updated_at FROM users WHERE id = ?`
+	query := `SELECT id, email, name, password_hash, role, avatar_url, rating_avg, rating_count, created_at, updated_at FROM users WHERE id = ?`
 	row := r.DB.QueryRowContext(ctx, query, id)
 
 	var user domain.User
 	var avatarURL sql.NullString
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &avatarURL, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.PasswordHash, &user.Role, &avatarURL, &user.RatingAvg, &user.RatingCount, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -86,7 +86,7 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, userID, hashedPassw
 }
 
 func (r *UserRepository) SearchUsers(ctx context.Context, q string) ([]domain.User, error) {
-	query := `SELECT id, email, COALESCE(name, '') as name, role, avatar_url FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY name LIMIT 10`
+	query := `SELECT id, email, COALESCE(name, '') as name, role, avatar_url, rating_avg, rating_count FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY name LIMIT 10`
 	pattern := "%" + q + "%"
 	rows, err := r.DB.QueryContext(ctx, query, pattern, pattern)
 	if err != nil {
@@ -97,7 +97,7 @@ func (r *UserRepository) SearchUsers(ctx context.Context, q string) ([]domain.Us
 	for rows.Next() {
 		var u domain.User
 		var avatarURL sql.NullString
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &avatarURL); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &avatarURL, &u.RatingAvg, &u.RatingCount); err != nil {
 			return nil, err
 		}
 		if avatarURL.Valid {

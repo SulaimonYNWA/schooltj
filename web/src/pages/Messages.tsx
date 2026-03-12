@@ -25,23 +25,51 @@ export default function Messages() {
     const navigate = useNavigate();
     const [isConnected, setIsConnected] = useState(false);
 
-    // SSE connection for real-time message push
+    // WebSocket connection for real-time message push
     useEffect(() => {
         const token = localStorage.getItem('token') || '';
-        const url = `/api/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-        const es = new EventSource(url);
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Use the current host to connect to the backend WebSocket
+        const wsUrl = `${protocol}//${window.location.host}/api/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 
-        es.onopen = () => setIsConnected(true);
-        es.onerror = () => setIsConnected(false);
+        let ws: WebSocket;
+        let reconnectTimeout: ReturnType<typeof setTimeout>;
 
-        es.addEventListener('message', () => {
-            qc.invalidateQueries({ queryKey: ['conversations'] });
-            if (activeChat) {
-                qc.invalidateQueries({ queryKey: ['messages', activeChat] });
-            }
-        });
+        const connect = () => {
+            ws = new WebSocket(wsUrl);
 
-        return () => es.close();
+            ws.onopen = () => setIsConnected(true);
+            ws.onclose = () => {
+                setIsConnected(false);
+                // Try to reconnect after 3 seconds
+                reconnectTimeout = setTimeout(connect, 3000);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    // Try parsing JSON if backend sends it. 
+                    // Our backend broadcasts standard JSON payloads now.
+                    if (event.data !== ": connected") {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'new_message') {
+                            qc.invalidateQueries({ queryKey: ['conversations'] });
+                            if (activeChat) {
+                                qc.invalidateQueries({ queryKey: ['messages', activeChat] });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log("WebSocket message parse error:", e);
+                }
+            };
+        };
+
+        connect();
+
+        return () => {
+            clearTimeout(reconnectTimeout);
+            if (ws) ws.close();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeChat]);
 

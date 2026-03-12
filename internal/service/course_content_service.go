@@ -60,7 +60,7 @@ func (s *CourseContentService) canReadCourseContent(ctx context.Context, userID 
 	// Students must be enrolled with active status
 	if role == domain.RoleStudent {
 		enrollment, err := s.courseRepo.GetEnrollmentByStudentAndCourse(ctx, userID, courseID)
-		if err != nil || enrollment == nil || enrollment.Status != domain.EnrollmentStatusActive {
+		if err != nil || enrollment == nil || (enrollment.Status != domain.EnrollmentStatusActive && enrollment.Status != domain.EnrollmentStatusCompleted) {
 			return errors.New("you must be enrolled in this course to view its content")
 		}
 		return nil
@@ -78,35 +78,37 @@ func (s *CourseContentService) AddTopic(ctx context.Context, userID string, topi
 }
 
 func (s *CourseContentService) ListTopics(ctx context.Context, userID string, role domain.Role, courseID string) ([]domain.CurriculumTopic, error) {
-	if err := s.canReadCourseContent(ctx, userID, role, courseID); err != nil {
-		return nil, err
-	}
 	topics, err := s.contentRepo.ListTopics(ctx, courseID)
 	if err != nil {
 		return nil, err
 	}
+
 	if topics == nil {
 		topics = []domain.CurriculumTopic{}
 	}
-	// Students only see visible topics
-	if role == domain.RoleStudent {
+
+	// For students or public, only show visible topics and include completion status if logged in
+	if role == domain.RoleStudent || role == "" {
 		visible := make([]domain.CurriculumTopic, 0, len(topics))
-		completedTopics, _ := s.studentRepo.GetCompletedTopics(ctx, userID, courseID)
 		completedMap := make(map[string]bool)
-		for _, id := range completedTopics {
-			completedMap[id] = true
+
+		if userID != "" {
+			completedTopics, _ := s.studentRepo.GetCompletedTopics(ctx, userID, courseID)
+			for _, id := range completedTopics {
+				completedMap[id] = true
+			}
 		}
 
 		for _, t := range topics {
 			if t.Visible {
-				if completedMap[t.ID] {
-					t.IsCompleted = true
-				}
+				t.IsCompleted = completedMap[t.ID]
 				visible = append(visible, t)
 			}
 		}
 		return visible, nil
 	}
+
+	// Teachers/Admins see everything
 	return topics, nil
 }
 
@@ -136,9 +138,20 @@ func (s *CourseContentService) DeleteTopic(ctx context.Context, userID, topicID 
 
 // ── Course Materials ──
 
-func (s *CourseContentService) UploadMaterial(ctx context.Context, userID, courseID string, header *multipart.FileHeader, file multipart.File) (*domain.CourseMaterial, error) {
+func (s *CourseContentService) UploadMaterial(ctx context.Context, userID, courseID string, topicID *string, header *multipart.FileHeader, file multipart.File) (*domain.CourseMaterial, error) {
 	if err := s.isTeacherOfCourse(ctx, userID, courseID); err != nil {
 		return nil, err
+	}
+
+	// If topic is specified, verify it belongs to this course
+	if topicID != nil && *topicID != "" {
+		gotCourseID, err := s.contentRepo.GetTopicCourseID(ctx, *topicID)
+		if err != nil {
+			return nil, errors.New("topic not found")
+		}
+		if gotCourseID != courseID {
+			return nil, errors.New("topic does not belong to this course")
+		}
 	}
 
 	// Validate file type
@@ -171,6 +184,7 @@ func (s *CourseContentService) UploadMaterial(ctx context.Context, userID, cours
 
 	material := &domain.CourseMaterial{
 		CourseID:    courseID,
+		TopicID:     topicID,
 		FileName:    header.Filename,
 		FilePath:    destPath,
 		FileSize:    header.Size,
@@ -184,6 +198,25 @@ func (s *CourseContentService) UploadMaterial(ctx context.Context, userID, cours
 	}
 
 	return material, nil
+}
+
+func (s *CourseContentService) ListTopicMaterials(ctx context.Context, userID string, role domain.Role, topicID string) ([]domain.CourseMaterial, error) {
+	// Look up the course for this topic
+	courseID, err := s.contentRepo.GetTopicCourseID(ctx, topicID)
+	if err != nil {
+		return nil, errors.New("topic not found")
+	}
+	if err := s.canReadCourseContent(ctx, userID, role, courseID); err != nil {
+		return nil, err
+	}
+	materials, err := s.contentRepo.ListMaterialsByTopic(ctx, topicID)
+	if err != nil {
+		return nil, err
+	}
+	if materials == nil {
+		materials = []domain.CourseMaterial{}
+	}
+	return materials, nil
 }
 
 func (s *CourseContentService) ListMaterials(ctx context.Context, userID string, role domain.Role, courseID string) ([]domain.CourseMaterial, error) {

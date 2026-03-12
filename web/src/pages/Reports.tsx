@@ -86,7 +86,7 @@ const shortMonth = (m: string) => {
 
 export default function Reports() {
     const { user } = useAuth();
-    const isTeacherOrAdmin = user?.role === 'school_admin' || user?.role === 'teacher';
+    const isTeacherOrAdmin = user?.role === 'school_admin' || user?.role === 'teacher' || user?.role === 'admin';
 
     const { data: stats } = useQuery<Stats>({
         queryKey: ['dashboard-stats'],

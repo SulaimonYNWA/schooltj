@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -69,6 +70,10 @@ func (h *CourseHandler) List(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[CourseHandler.List] error: %v", err)
 		http.Error(w, "failed to fetch courses", http.StatusInternalServerError)
 		return
+	}
+
+	if courses == nil {
+		courses = []*domain.Course{}
 	}
 
 	json.NewEncoder(w).Encode(courses)
@@ -281,7 +286,8 @@ func (h *CourseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	course, err := h.service.GetCourseByID(r.Context(), courseID)
+	userID, _ := r.Context().Value(UserContextKey).(string)
+	course, err := h.service.GetCourseByID(r.Context(), userID, courseID)
 	if err != nil {
 		log.Printf("[CourseHandler.GetByID] error: %v", err)
 		http.Error(w, "course not found", http.StatusNotFound)
@@ -290,6 +296,13 @@ func (h *CourseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(course)
+
+	// Increment view count if user is a student
+	userID, ok := r.Context().Value(UserContextKey).(string)
+	role, okRole := r.Context().Value(RoleContextKey).(domain.Role)
+	if ok && okRole && role == domain.RoleStudent {
+		_ = h.service.IncrementCourseView(context.Background(), userID, courseID)
+	}
 }
 
 type updateCourseRequest struct {

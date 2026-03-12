@@ -215,21 +215,25 @@ func (h *AuthHandler) GetPublicProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Strip sensitive fields
 	type publicProfile struct {
-		ID        string      `json:"id"`
-		Name      string      `json:"name"`
-		Email     string      `json:"email"`
-		Role      domain.Role `json:"role"`
-		AvatarURL *string     `json:"avatar_url,omitempty"`
-		CreatedAt string      `json:"created_at"`
+		ID          string      `json:"id"`
+		Name        string      `json:"name"`
+		Email       string      `json:"email"`
+		Role        domain.Role `json:"role"`
+		AvatarURL   *string     `json:"avatar_url,omitempty"`
+		RatingAvg   float64     `json:"rating_avg"`
+		RatingCount int         `json:"rating_count"`
+		CreatedAt   string      `json:"created_at"`
 	}
 
 	profile := publicProfile{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		Role:      user.Role,
-		AvatarURL: user.AvatarURL,
-		CreatedAt: user.CreatedAt.Format("2006-01-02"), // Example: just returning the date portion if preferred, or use time.Time
+		ID:          user.ID,
+		Name:        user.Name,
+		Email:       user.Email,
+		Role:        user.Role,
+		AvatarURL:   user.AvatarURL,
+		RatingAvg:   user.RatingAvg,
+		RatingCount: user.RatingCount,
+		CreatedAt:   user.CreatedAt.Format("2006-01-02"),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

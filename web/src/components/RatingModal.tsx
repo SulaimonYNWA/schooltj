@@ -5,16 +5,16 @@ import { useMutation } from '@tanstack/react-query';
 import { api } from '../lib/axios';
 
 interface RatingModalProps {
-    targetUserId: string;
+    targetId: string;
     targetName: string;
-    targetType: 'teacher' | 'student';
+    targetType: 'teacher' | 'student' | 'course';
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
 }
 
 export default function RatingModal({
-    targetUserId,
+    targetId,
     targetName,
     targetType,
     isOpen,
@@ -27,7 +27,7 @@ export default function RatingModal({
     const [error, setError] = useState('');
 
     const submitRatingMutation = useMutation({
-        mutationFn: async (data: { to_user_id: string; score: number; comment: string }) => {
+        mutationFn: async (data: { to_user_id?: string; to_course_id?: string; score: number; comment: string }) => {
             return api.post('/api/ratings', data);
         },
         onSuccess: () => {
@@ -52,11 +52,18 @@ export default function RatingModal({
             return;
         }
 
-        submitRatingMutation.mutate({
-            to_user_id: targetUserId,
+        const data: any = {
             score,
             comment: comment.trim()
-        });
+        };
+
+        if (targetType === 'course') {
+            data.to_course_id = targetId;
+        } else {
+            data.to_user_id = targetId;
+        }
+
+        submitRatingMutation.mutate(data);
     };
 
     const handleClose = () => {
@@ -99,7 +106,7 @@ export default function RatingModal({
                                 <div className="flex items-start justify-between mb-4">
                                     <div>
                                         <Dialog.Title className="text-xl font-bold text-gray-900">
-                                            Rate {targetType === 'teacher' ? 'Teacher' : 'Student'}
+                                            Rate {targetType === 'teacher' ? 'Teacher' : targetType === 'student' ? 'Student' : 'Course'}
                                         </Dialog.Title>
                                         <p className="text-sm text-gray-500 mt-1">
                                             Share your experience with {targetName}

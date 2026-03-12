@@ -77,15 +77,15 @@ func (r *CourseContentRepository) CreateMaterial(ctx context.Context, m *domain.
 		m.ID = uuid.New().String()
 	}
 	_, err := r.DB.ExecContext(ctx,
-		`INSERT INTO course_materials (id, course_id, file_name, file_path, file_size, content_type, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		m.ID, m.CourseID, m.FileName, m.FilePath, m.FileSize, m.ContentType, m.UploadedBy,
+		`INSERT INTO course_materials (id, course_id, topic_id, file_name, file_path, file_size, content_type, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ID, m.CourseID, m.TopicID, m.FileName, m.FilePath, m.FileSize, m.ContentType, m.UploadedBy,
 	)
 	return err
 }
 
 func (r *CourseContentRepository) ListMaterials(ctx context.Context, courseID string) ([]domain.CourseMaterial, error) {
 	rows, err := r.DB.QueryContext(ctx,
-		`SELECT id, course_id, file_name, file_path, file_size, content_type, uploaded_by, created_at FROM course_materials WHERE course_id = ? ORDER BY created_at DESC`,
+		`SELECT id, course_id, topic_id, file_name, file_path, file_size, content_type, uploaded_by, created_at FROM course_materials WHERE course_id = ? ORDER BY created_at DESC`,
 		courseID,
 	)
 	if err != nil {
@@ -96,7 +96,28 @@ func (r *CourseContentRepository) ListMaterials(ctx context.Context, courseID st
 	var materials []domain.CourseMaterial
 	for rows.Next() {
 		var m domain.CourseMaterial
-		if err := rows.Scan(&m.ID, &m.CourseID, &m.FileName, &m.FilePath, &m.FileSize, &m.ContentType, &m.UploadedBy, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.CourseID, &m.TopicID, &m.FileName, &m.FilePath, &m.FileSize, &m.ContentType, &m.UploadedBy, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		materials = append(materials, m)
+	}
+	return materials, rows.Err()
+}
+
+func (r *CourseContentRepository) ListMaterialsByTopic(ctx context.Context, topicID string) ([]domain.CourseMaterial, error) {
+	rows, err := r.DB.QueryContext(ctx,
+		`SELECT id, course_id, topic_id, file_name, file_path, file_size, content_type, uploaded_by, created_at FROM course_materials WHERE topic_id = ? ORDER BY created_at DESC`,
+		topicID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var materials []domain.CourseMaterial
+	for rows.Next() {
+		var m domain.CourseMaterial
+		if err := rows.Scan(&m.ID, &m.CourseID, &m.TopicID, &m.FileName, &m.FilePath, &m.FileSize, &m.ContentType, &m.UploadedBy, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		materials = append(materials, m)
@@ -107,9 +128,9 @@ func (r *CourseContentRepository) ListMaterials(ctx context.Context, courseID st
 func (r *CourseContentRepository) GetMaterial(ctx context.Context, id string) (*domain.CourseMaterial, error) {
 	var m domain.CourseMaterial
 	err := r.DB.QueryRowContext(ctx,
-		`SELECT id, course_id, file_name, file_path, file_size, content_type, uploaded_by, created_at FROM course_materials WHERE id = ?`,
+		`SELECT id, course_id, topic_id, file_name, file_path, file_size, content_type, uploaded_by, created_at FROM course_materials WHERE id = ?`,
 		id,
-	).Scan(&m.ID, &m.CourseID, &m.FileName, &m.FilePath, &m.FileSize, &m.ContentType, &m.UploadedBy, &m.CreatedAt)
+	).Scan(&m.ID, &m.CourseID, &m.TopicID, &m.FileName, &m.FilePath, &m.FileSize, &m.ContentType, &m.UploadedBy, &m.CreatedAt)
 	if err != nil {
 		return nil, err
 	}

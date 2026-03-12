@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/axios';
+import { useAuth } from '../lib/auth';
 import { User, Mail, Calendar, UserPlus, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import RatingDisplay from '../components/RatingDisplay';
@@ -15,6 +16,7 @@ interface Teacher {
     rating_avg: number;
     rating_count: number;
     created_at: string;
+    school_name?: string;
 }
 
 export default function Teachers() {
@@ -24,10 +26,15 @@ export default function Teachers() {
     const [ratingComment, setRatingComment] = useState('');
     const [submitError, setSubmitError] = useState<string | null>(null);
 
+    const { user } = useAuth();
+
+    // Admins see all teachers, school_admins see only their school's teachers
+    const endpoint = user?.role === 'admin' ? '/api/teachers' : '/api/schools/teachers';
+
     const { data: teachers, isLoading, error } = useQuery<Teacher[]>({
-        queryKey: ['teachers'],
+        queryKey: ['teachers', endpoint],
         queryFn: async () => {
-            const res = await api.get('/api/schools/teachers');
+            const res = await api.get(endpoint);
             return res.data;
         },
     });
@@ -93,6 +100,9 @@ export default function Teachers() {
                                         <Link to={`/users/${teacher.id}`} className="hover:text-indigo-600 hover:underline">{teacher.name || teacher.email.split('@')[0]}</Link>
                                     </h3>
                                     <p className="text-xs text-indigo-600 font-medium uppercase tracking-wider mt-0.5">{teacher.role}</p>
+                                    <p className="text-xs font-semibold text-gray-500 mt-1">
+                                        {teacher.school_name ? `School: ${teacher.school_name}` : 'Independent Teacher'}
+                                    </p>
                                 </div>
                             </div>
 

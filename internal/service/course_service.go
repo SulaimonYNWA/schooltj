@@ -107,7 +107,9 @@ func (s *CourseService) CreateCourse(
 }
 
 func (s *CourseService) ListCourses(ctx context.Context, userID string, role domain.Role) ([]*domain.Course, error) {
-	filter := repository.CourseFilter{} // Basic implementation, can be extended to filter by what the user should see
+	filter := repository.CourseFilter{
+		UserID: &userID,
+	}
 
 	// For MVP, if teacher, show their courses? If school admin, show school courses?
 	// If student, just show all? Or available?
@@ -488,8 +490,12 @@ func (s *CourseService) UpdateCoverImage(ctx context.Context, courseID string, u
 	return s.courseRepo.UpdateCoverImage(ctx, courseID, url)
 }
 
-func (s *CourseService) GetCourseByID(ctx context.Context, id string) (*domain.Course, error) {
-	return s.courseRepo.GetCourseByIDWithDetails(ctx, id)
+func (s *CourseService) GetCourseByID(ctx context.Context, userID, courseID string) (*domain.Course, error) {
+	return s.courseRepo.GetCourseByIDWithDetails(ctx, userID, courseID)
+}
+
+func (s *CourseService) IncrementCourseView(ctx context.Context, studentID, courseID string) error {
+	return s.courseRepo.IncrementCourseView(ctx, studentID, courseID)
 }
 
 func (s *CourseService) ListCategories(ctx context.Context) ([]*domain.Category, error) {
@@ -556,7 +562,7 @@ func (s *CourseService) UpdateCourse(
 		return nil, err
 	}
 
-	return s.courseRepo.GetCourseByIDWithDetails(ctx, courseID)
+	return s.courseRepo.GetCourseByIDWithDetails(ctx, userID, courseID)
 }
 
 func (s *CourseService) DeleteCourse(ctx context.Context, userID string, role domain.Role, courseID string) error {

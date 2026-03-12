@@ -30,22 +30,22 @@ export default function Homework() {
 
     const { data: myAssign = [] } = useQuery<Assignment[]>({
         queryKey: ['my-assignments'],
-        queryFn: () => api.get('/api/my-assignments').then(r => r.data),
+        queryFn: () => api.get('/api/my-assignments').then(r => Array.isArray(r.data) ? r.data : []),
         enabled: isStudent,
     });
     const { data: courses = [] } = useQuery<Course[]>({
         queryKey: ['courses'],
-        queryFn: () => api.get('/api/courses').then(r => r.data),
+        queryFn: () => api.get('/api/courses').then(r => Array.isArray(r.data) ? r.data : []),
         enabled: !isStudent,
     });
     const { data: cAssign = [] } = useQuery<Assignment[]>({
         queryKey: ['course-assignments', selCourse],
-        queryFn: () => api.get(`/api/courses/${selCourse}/assignments`).then(r => r.data),
+        queryFn: () => api.get(`/api/courses/${selCourse}/assignments`).then(r => Array.isArray(r.data) ? r.data : []),
         enabled: !!selCourse,
     });
     const { data: subs = [] } = useQuery<Submission[]>({
         queryKey: ['submissions', viewSubs],
-        queryFn: () => api.get(`/api/assignments/${viewSubs}/submissions`).then(r => r.data),
+        queryFn: () => api.get(`/api/assignments/${viewSubs}/submissions`).then(r => Array.isArray(r.data) ? r.data : []),
         enabled: !!viewSubs,
     });
 

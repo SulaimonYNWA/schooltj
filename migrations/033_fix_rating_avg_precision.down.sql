@@ -1,0 +1,4 @@
+-- Revert rating_avg precision
+ALTER TABLE users MODIFY COLUMN rating_avg DECIMAL(3,2) DEFAULT 0.00;
+ALTER TABLE schools MODIFY COLUMN rating_avg DECIMAL(3,2) DEFAULT 0.00;
+ALTER TABLE courses MODIFY COLUMN rating_avg DECIMAL(3,2) DEFAULT 0.00;
